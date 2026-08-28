@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  kinetix-review-postgres:
+    image: postgres:16-alpine
+    container_name: kinetix-review-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: kinetix_review_dev
+    ports:
+      - "5436:5432"
+    volumes:
+      - review_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kinetix-review-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kinetix-review-service
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    depends_on:
+      kinetix-review-postgres:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  review_postgres_data:

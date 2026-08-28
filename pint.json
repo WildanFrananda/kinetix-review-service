@@ -1,0 +1,15 @@
+{
+  "preset": "laravel",
+  "rules": {
+    "concat_space": {
+      "spacing": "one"
+    },
+    "single_quote": false,
+    "braces_position": {
+      "classes_opening_brace": "same_line",
+      "functions_opening_brace": "same_line",
+      "anonymous_functions_opening_brace": "same_line"
+    },
+    "declare_strict_types": true
+  }
+}
