@@ -1,0 +1,33 @@
+# Keep secrets and local state out of the build context (S1 / P0-IMG-01).
+# Every Dockerfile here used COPY . . with no .dockerignore, so .env — which now holds
+# freshly rotated secrets — and the whole .git history were baked into distributable
+# image layers. `docker history` exposes them even if a later layer deletes the file.
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+.git
+.gitignore
+.github
+.gitlab-ci.yml
+
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+*.md
+docs/
+
+# NOTE: vendor/ is deliberately NOT ignored yet. It is untracked, and the Dockerfile
+# never actually installs dependencies — `composer install` runs without composer present
+# and its failure is swallowed by `2>/dev/null || true`. The image works only because the
+# local vendor/ is copied in. Excluding it here would produce an empty image. Fix the
+# build first (install composer, drop the `|| true`), then add vendor/ to this file.
+node_modules/
+tests/
+storage/logs/
+storage/framework/cache/
+.phpunit.result.cache
