@@ -31,3 +31,17 @@ tests/
 storage/logs/
 storage/framework/cache/
 .phpunit.result.cache
+
+# Generated state, never source. bootstrap/cache/*.php is written by `artisan package:discover`
+# on the HOST, where dev dependencies are installed. Copied into a --no-dev build it names
+# providers that do not exist there (Laravel\Pail\PailServiceProvider), and every artisan
+# command in the image dies on a class-not-found. The image regenerates these itself.
+bootstrap/cache/*.php
+storage/framework/cache/
+storage/logs/
+
+# vendor/ must come from the composer stage, never from the host. A host vendor/ is installed
+# WITH dev dependencies, so copying it over a --no-dev install leaves installed.json claiming
+# laravel/pail is present while --classmap-authoritative omits it: every artisan command then
+# dies on "Class Laravel\Pail\PailServiceProvider not found" with the files sitting on disk.
+vendor/
