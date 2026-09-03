@@ -8,6 +8,7 @@ use App\Http\Controllers\ProductReviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::get("/health", [HealthController::class, "health"]);
+Route::get("/health/ready", [HealthController::class, "ready"]);
 
 Route::prefix("v1")->group(function () {
     Route::post("/reviews/products", [ProductReviewController::class, "store"]);
