@@ -10,6 +10,7 @@
         "google/protobuf": "^5.36",
         "grpc/grpc": "^1.82",
         "laravel/framework": "^13.17",
+        "laravel/octane": "^2.19",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0"
     },

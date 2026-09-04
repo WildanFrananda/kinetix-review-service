@@ -18,8 +18,8 @@ class AppServiceProvider extends ServiceProvider {
     public function register(): void {
         $this->app->bind(ProductReviewRepositoryInterface::class, EloquentProductReviewRepository::class);
         $this->app->bind(DriverRatingRepositoryInterface::class, EloquentDriverRatingRepository::class);
-        $this->app->bind(OrderClientInterface::class, GrpcOrderClient::class);
-        $this->app->bind(IdentityClientInterface::class, IdentityGrpcClient::class);
+        $this->app->singleton(OrderClientInterface::class, GrpcOrderClient::class);
+        $this->app->singleton(IdentityClientInterface::class, IdentityGrpcClient::class);
     }
 
     public function boot(): void {}

@@ -45,3 +45,8 @@ storage/logs/
 # laravel/pail is present while --classmap-authoritative omits it: every artisan command then
 # dies on "Class Laravel\Pail\PailServiceProvider not found" with the files sitting on disk.
 vendor/
+
+# The frankenphp binary that `octane:install` downloads for local development — 161 MB of a
+# server the image already gets from its base layer. Copying it in would ship two copies of
+# FrankenPHP and inflate the build context for nothing.
+frankenphp
