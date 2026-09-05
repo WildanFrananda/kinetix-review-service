@@ -22,6 +22,12 @@ WORKDIR /app
 
 COPY composer.json composer.lock ./
 
+# The generated protobuf classes are on the classmap, so they must exist before the first
+# `composer install` builds an optimized autoloader — without them it fails outright with
+# "Could not scan for classes inside generated/". Copied here rather than moved into the later
+# `COPY . .` so the dependency layer still caches on composer.json alone.
+COPY generated ./generated
+
 RUN composer install \
       --no-dev \
       --no-scripts \
@@ -40,58 +46,11 @@ RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php
 
-FROM dunglas/frankenphp:php8.5@sha256:f92d81eb3fe4fd18b35d3d58192b7cc3acc8943817bbf39f2fcf0be02a3916dc AS final
-
-RUN set -eux; \
-    apt-get update; \
-    apt-get install --no-install-recommends -y libpq-dev zlib1g-dev libzip-dev curl; \
-    rm -rf /var/lib/apt/lists/*
-
-
-# ORDER MATTERS. The grpc compile below is the expensive layer — twenty minutes — and every
-# layer above it invalidates it when edited. Adding pcntl to the bundled-extension step, which
-# used to sit here, threw away the whole grpc cache for a thirty-second change. Cheap and
-# frequently-edited steps go AFTER it.
-# The PECL extensions, in their own layer so a failure is attributable to them.
-#
-# MAKEFLAGS is load-bearing, and its value is bounded by MEMORY, not by core count.
-#
-# `pecl install` runs make single-threaded, and grpc vendors the entire gRPC C++ core — 735+
-# translation units. It is not linking against a system libgrpc; there is no system libgrpc to
-# link against. Serial, that measured ~40 minutes.
-#
-# `-j$(nproc)` was worse, not better. Each cc1plus compiling a gRPC core file holds 0.7-1.1 GB,
-# so eight of them want ~7 GB on a 7.8 GB VM: available memory fell to 664 MB, swap filled to
-# 99%, and the machine spent its time paging instead of compiling — 114 files in 24 minutes,
-# slower per file than the serial build. Four fits.
-RUN set -eux; \
-    apt-get update; \
-    apt-get install --no-install-recommends -y $PHPIZE_DEPS cmake git; \
-    MAKEFLAGS="-j4" pecl install grpc; \
-    MAKEFLAGS="-j4" pecl install protobuf; \
-    docker-php-ext-enable grpc protobuf; \
-    apt-get purge -y --auto-remove cmake git; \
-    rm -rf /var/lib/apt/lists/* /tmp/pear
-
-# `pdo` and `opcache` are compiled into PHP 8.5 already; asking for either builds nothing and
-# then fails the install with `cp: cannot stat 'modules/*'`. pdo_pgsql and pcntl do need building.
-#
-# pcntl is not optional for Octane: InteractsWithServers handles SIGINT/SIGTERM to stop workers
-# cleanly, and without the extension the constant does not exist — `octane:start` dies on
-# `Undefined constant "Laravel\Octane\Commands\Concerns\SIGINT"` and the container restarts
-# forever.
-RUN set -eux; \
-    apt-get update; \
-    apt-get install --no-install-recommends -y $PHPIZE_DEPS; \
-    docker-php-ext-install -j"$(nproc)" pdo_pgsql pcntl; \
-    rm -rf /var/lib/apt/lists/*
-
-# The extensions have to be present in this image, not merely requested. Without this the build
-# goes green and the failure surfaces as a 500 the first time a review touches an order — which
-# is exactly how this service shipped before.
-RUN php -r 'exit(extension_loaded("grpc") && extension_loaded("protobuf") ? 0 : 1);' \
-    && php -r 'exit(class_exists("Grpc\\ChannelCredentials") ? 0 : 1);' \
-    && php -r 'exit(extension_loaded("pcntl") && defined("SIGINT") ? 0 : 1);'
+# The PHP runtime — FrankenPHP plus grpc, protobuf, pdo_pgsql and pcntl — is built by
+# docker/php-runtime.Dockerfile and published by the php-runtime CI job. Pinned by digest:
+# a tag is a moving pointer, and the extension set is exactly the thing that must not move
+# under a service without somebody deciding it should.
+FROM registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime@sha256:883de4f70a224a6264066cbe4ca22793fae80044dcbd46f0e1d355116f0ff730 AS final
 
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
 

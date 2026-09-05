@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Publishes the php-runtime image and pins the service Dockerfile to what was published.
+#
+#   docker login registry.gitlab.com     # once, by hand — it needs your credentials
+#   bin/publish-php-runtime
+#
+# Everything after the login is here so the two halves cannot get out of step: pushing without
+# pinning leaves the service still compiling grpc, and pinning without pushing points it at an
+# image nobody can pull.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IMAGE="registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime"
+TAG="php8.5-grpc1"
+
+say() { printf '\033[1m%s\033[0m\n' "$*"; }
+
+say "1/4  Checking you are logged in to registry.gitlab.com"
+# A HEAD against the repository, not `docker login --help`: the only thing that settles this is
+# whether the daemon can actually authenticate for THIS repository.
+if ! docker manifest inspect "$IMAGE:$TAG" >/dev/null 2>&1; then
+  # Not conclusive on its own — the image may simply not be published yet — so fall through and
+  # let the push report the real answer.
+  printf '  no published image yet, or not logged in; the push below will say which\n'
+else
+  printf '  reachable\n'
+fi
+
+say "2/4  Building $IMAGE:$TAG"
+if docker image inspect "$IMAGE:$TAG" >/dev/null 2>&1; then
+  printf '  already built locally; rebuilding to be sure it matches the Dockerfile\n'
+fi
+docker build -f "$HERE/docker/php-runtime.Dockerfile" -t "$IMAGE:$TAG" "$HERE"
+
+say "3/4  Pushing"
+# The output is kept so the failure can be classified. Every push failure used to print the same
+# "check your credentials" advice, including for a network abort — which sent the reader to
+# re-issue a token that was never the problem.
+push_log="$(mktemp)"
+if ! docker push "$IMAGE:$TAG" 2>&1 | tee "$push_log"; then
+  printf '\n'
+  if grep -q 'context canceled\|context deadline exceeded\|EOF\|connection reset\|i/o timeout' "$push_log"; then
+    cat <<'MSG'
+  The upload was INTERRUPTED, not refused. `context canceled`, a reset or a timeout means the
+  request was cut off mid-flight — a VPN reconnecting, the machine sleeping, or Ctrl+C. Nothing
+  is wrong with your credentials and nothing needs re-issuing.
+
+  This image is ~1.6 GB, so the window for that is wide. Re-run this script; Docker resumes from
+  the layers that already landed.
+MSG
+  elif grep -q 'insufficient_scope\|authorization failed\|denied' "$push_log"; then
+    cat <<'MSG'
+  The push was REFUSED. GitLab authenticated you and then declined to grant push access, which
+  is one of exactly two things:
+
+  1. The token lacks the scope. A Personal Access Token needs `write_registry` — the `api` scope
+     alone does not cover the registry. Re-issue it at
+     GitLab > Edit profile > Access Tokens, then:
+
+         docker logout registry.gitlab.com
+         docker login registry.gitlab.com
+
+     Username is your GitLab username; the password is the token. Your account password never
+     works for the registry.
+
+  2. The project's Container Registry is switched off. Turn it on at
+     the project > Settings > General > Visibility, project features, permissions >
+     Container registry.
+
+  Try (1) first: it is the common one, and it costs a minute.
+MSG
+  else
+    cat <<'MSG'
+  The push failed for a reason this script does not recognise. The full output is above; the
+  first line of it is the part that matters.
+MSG
+  fi
+  rm -f "$push_log"
+  exit 1
+fi
+rm -f "$push_log"
+
+say "4/4  Pinning the service Dockerfile to the digest that was just published"
+digest="$(docker inspect --format='{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$IMAGE:$TAG")"
+test -n "$digest" || { echo "the push reported success but the image carries no digest"; exit 1; }
+"$HERE/bin/use-php-runtime" "$digest"
+
+cat <<MSG
+
+Published and pinned:
+  $digest
+
+Now rebuild and check the time:
+  cd ../kinetix-infrastructure && time docker compose build kinetix-review-service
+MSG

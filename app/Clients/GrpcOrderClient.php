@@ -5,39 +5,56 @@ declare(strict_types=1);
 namespace App\Clients;
 
 use App\Contracts\Clients\OrderClientInterface;
-use Grpc\BaseStub;
+use App\Security\ServiceIdentity;
 use Grpc\ChannelCredentials;
+use Order\V1\GetOrderDetailsRequest;
+use Order\V1\GetOrderDetailsResponse;
 
-class GrpcOrderClient extends BaseStub implements OrderClientInterface {
-    public function __construct(string $hostname = "", array $opts = []) {
+final class GrpcOrderClient implements OrderClientInterface {
+    private readonly \Order\V1\OrderGrpcServiceClient $stub;
+
+    public function __construct(string $hostname = "", ?ChannelCredentials $credentials = null) {
         if ($hostname === "") {
-            $hostname = config("services.order_service.grpc_url", "localhost:50055");
+            $hostname = config("services.order_service.grpc_url", "kinetix-order-service:50055");
         }
-        $opts["credentials"] = $opts["credentials"] ?? ChannelCredentials::createInsecure();
-        parent::__construct($hostname, $opts);
+
+        $this->stub = new \Order\V1\OrderGrpcServiceClient($hostname, [
+            "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
+        ]);
     }
 
     public function getOrderDetails(string $orderId): ?array {
-        $requestPayload = pack("C C N A*", 0, 0, strlen($orderId) + 2, "\x0a" . chr(strlen($orderId)) . $orderId);
+        $request = new GetOrderDetailsRequest();
+        $request->setOrderId($orderId);
 
-        [$response, $status] = $this->_simpleRequest(
-            "/order.v1.OrderGrpcService/GetOrderDetails",
-            $requestPayload,
-            [self::class, "deserializeResponse"],
-            []
-        )->wait();
+        /** @var array{0: ?GetOrderDetailsResponse, 1: \stdClass} $call */
+        $call = $this->stub->GetOrderDetails($request)->wait();
+        [$response, $status] = $call;
 
-        if ($status->code !== \Grpc\STATUS_OK || ! $response) {
+        if ($status->code !== \Grpc\STATUS_OK || $response === null || ! $response->getFound()) {
             return null;
         }
 
-        return $response;
-    }
+        $items = [];
+        foreach ($response->getItems() as $item) {
+            $items[] = [
+                "product_id" => $item->getProductId(),
+                "product_title" => $item->getProductTitle(),
+                "unit_price" => $item->getUnitPrice(),
+                "quantity" => $item->getQuantity(),
+                "line_subtotal" => $item->getLineSubtotal(),
+            ];
+        }
 
-    public static function deserializeResponse(string $value): array {
         return [
-            "id" => $value,
-            "found" => true,
+            "order_id" => $response->getOrderId(),
+            "order_number" => $response->getOrderNumber(),
+            "customer_id" => $response->getCustomerId(),
+            "status" => $response->getStatus(),
+            "subtotal" => $response->getSubtotal(),
+            "discount_amount" => $response->getDiscountAmount(),
+            "final_total" => $response->getFinalTotal(),
+            "items" => $items,
         ];
     }
 }

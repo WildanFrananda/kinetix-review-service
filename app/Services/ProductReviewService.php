@@ -4,31 +4,27 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Contracts\Clients\IdentityClientInterface;
 use App\Contracts\Clients\OrderClientInterface;
 use App\Contracts\Repositories\ProductReviewRepositoryInterface;
 use App\Models\ProductReview;
+use App\Security\AccessClaims;
 use InvalidArgumentException;
 
 class ProductReviewService {
     public function __construct(
         private readonly ProductReviewRepositoryInterface $repository,
-        private readonly OrderClientInterface $orderClient,
-        private readonly IdentityClientInterface $identityClient
+        private readonly OrderClientInterface $orderClient
     ) {}
 
-    public function createReview(int $customerId, array $data): ProductReview {
-        $userProfile = $this->identityClient->getUserProfile($customerId);
-        if (! $userProfile) {
-            throw new InvalidArgumentException("Customer identity not found in Identity Service.");
-        }
+    public function createReview(AccessClaims $caller, array $data): ProductReview {
+        $customerId = $caller->userId;
 
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
         if (! $order) {
             throw new InvalidArgumentException("Order not found.");
         }
 
-        $orderCustomerId = (int) ($order["customerId"] ?? $order["customer_id"] ?? 0);
+        $orderCustomerId = (int) ($order["customer_id"] ?? 0);
         if ($orderCustomerId !== $customerId) {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }
@@ -41,7 +37,7 @@ class ProductReviewService {
         $items = $order["items"] ?? [];
         $purchasedProduct = false;
         foreach ($items as $item) {
-            $itemId = (string) ($item["productId"] ?? $item["product_id"] ?? "");
+            $itemId = (string) ($item["product_id"] ?? "");
             if ($itemId === $data["product_id"]) {
                 $purchasedProduct = true;
                 break;

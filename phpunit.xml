@@ -32,5 +32,13 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- The verifier reads these at construction and refuses to run without them, in
+             the suite as anywhere else. The JWKS URL is never fetched: tests bind a
+             TokenVerifier whose HTTP client answers from memory, so everything past the
+             network - signature, RS256 pin, iss, aud, exp, token_use - still runs. -->
+        <env name="JWT_ISSUER" value="https://identity.kinetix.local"/>
+        <env name="JWT_AUDIENCE" value="kinetix"/>
+        <env name="IDENTITY_JWKS_URL" value="http://identity.test/.well-known/jwks.json"/>
+        <env name="ORDER_SERVICE_GRPC_URL" value="order.test:50055"/>
     </php>
 </phpunit>

@@ -92,8 +92,12 @@ return [
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME') ?: throw new RuntimeException('DB_USERNAME is required and has no default. Set it in the environment.'),
-            'password' => env('DB_PASSWORD') ?: throw new RuntimeException('DB_PASSWORD is required and has no default. Set it in the environment.'),
+            'username' => env('DB_CONNECTION') === 'pgsql'
+                ? (env('DB_USERNAME') ?: throw new RuntimeException('DB_USERNAME is required and has no default. Set it in the environment.'))
+                : env('DB_USERNAME'),
+            'password' => env('DB_CONNECTION') === 'pgsql'
+                ? (env('DB_PASSWORD') ?: throw new RuntimeException('DB_PASSWORD is required and has no default. Set it in the environment.'))
+                : env('DB_PASSWORD'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,

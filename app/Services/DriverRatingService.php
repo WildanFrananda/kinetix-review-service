@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Contracts\Clients\IdentityClientInterface;
 use App\Contracts\Clients\OrderClientInterface;
 use App\Contracts\Repositories\DriverRatingRepositoryInterface;
 use App\Models\DriverRating;
@@ -13,22 +12,16 @@ use InvalidArgumentException;
 class DriverRatingService {
     public function __construct(
         private readonly DriverRatingRepositoryInterface $repository,
-        private readonly OrderClientInterface $orderClient,
-        private readonly IdentityClientInterface $identityClient
+        private readonly OrderClientInterface $orderClient
     ) {}
 
     public function createRating(int $customerId, array $data): DriverRating {
-        $userProfile = $this->identityClient->getUserProfile($customerId);
-        if (! $userProfile) {
-            throw new InvalidArgumentException("Customer identity not found in Identity Service.");
-        }
-
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
         if (! $order) {
             throw new InvalidArgumentException("Order not found.");
         }
 
-        $orderCustomerId = (int) ($order["customerId"] ?? $order["customer_id"] ?? 0);
+        $orderCustomerId = (int) ($order["customer_id"] ?? 0);
         if ($orderCustomerId !== $customerId) {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }

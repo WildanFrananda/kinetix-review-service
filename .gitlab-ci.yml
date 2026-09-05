@@ -1,0 +1,103 @@
+# Kinetix review CI — GitLab.
+#
+# ⚠ PAIRED FILE: .github/workflows/ci.yml
+# `origin` is GitHub and GitLab is a mirror. Both assert the same things and must be changed
+# together; if they drift, the two platforms disagree about whether the same commit is good.
+#
+# This repository had no CI at all. Its suite had never run in a pipeline, and — as it turned
+# out — could not run anywhere: `config/database.php` threw for missing Postgres credentials
+# while building the *sqlite* connection, so every example errored before asserting anything.
+#
+# The `php-runtime` job is the reason this file exists in this shape. Building the PECL grpc
+# extension takes 29-52 minutes, and it was being rebuilt for edits that had nothing to do with
+# it. It now lives in its own image, published only when its Dockerfile changes, and the service
+# image starts from it by digest.
+
+include:
+  - project: 'WildanFrananda/kinetix-infrastructure'
+    ref: main
+    file: '/ci/service-ci.yml'
+
+stages:
+  - verify
+  - build
+  - test
+
+variables:
+  PHP_RUNTIME_IMAGE: "$CI_REGISTRY_IMAGE/php-runtime"
+
+.php:
+  image: registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime:php8.5-grpc1
+  before_script:
+    # No `cp .env.example .env`. `.env.testing` is committed and carries everything the suite
+    # needs; writing a `.env` here would create the second source of truth that s2-gate forbids.
+    - composer install --no-interaction --prefer-dist --no-progress
+
+secret-scan:
+  extends: .secret-scan
+
+# The expensive image, built only when the file that defines it changes.
+#
+# `rules: changes:` and not a schedule: a schedule rebuilds bytes that did not change, and a
+# manual job is one somebody forgets. The tag carries the extension set, so bumping grpc means
+# a new tag and a deliberate digest change downstream.
+php-runtime:
+  stage: build
+  image: docker:27-cli
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_HOST: "tcp://docker:2376"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
+    TAG: "php8.5-grpc1"
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -f docker/php-runtime.Dockerfile -t "$PHP_RUNTIME_IMAGE:$TAG" .
+    # Asserted in the pipeline as well as in the Dockerfile: an image that builds but cannot
+    # load its extensions is worse than a failed build, because it ships.
+    - docker run --rm "$PHP_RUNTIME_IMAGE:$TAG" php -r 'exit(extension_loaded("grpc") && extension_loaded("protobuf") && extension_loaded("pcntl") ? 0 : 1);'
+    - docker push "$PHP_RUNTIME_IMAGE:$TAG"
+    - |
+      digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$PHP_RUNTIME_IMAGE:$TAG")
+      echo "published $digest"
+      echo "pin it into the service Dockerfile with:  bin/use-php-runtime $digest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - docker/php-runtime.Dockerfile
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - docker/php-runtime.Dockerfile
+
+lint:
+  extends: .php
+  stage: verify
+  script:
+    - ./vendor/bin/pint --test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build-image:
+  extends: .build-image
+  # The service image starts from php-runtime, so if that job ran it must finish first.
+  needs:
+    - job: php-runtime
+      optional: true
+
+pest:
+  extends: .php
+  stage: test
+  script:
+    - php vendor/bin/pest --colors=never
+    # A suite that runs no tests is a failed suite, not a passing one — which is exactly what
+    # this repository would have reported for its whole life had a pipeline existed.
+    - |
+      count=$(php vendor/bin/pest --colors=never 2>&1 | sed -n 's/.*Tests:.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p' | tail -1)
+      echo "executed ${count:-0} tests"
+      test "${count:-0}" -ge 15 || { echo "expected at least 15 tests, ran ${count:-0} — the suite is not being discovered"; exit 1; }
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

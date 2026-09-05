@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Services\ProductReviewService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Http\Middleware\AuthenticateIdentityToken;
 use InvalidArgumentException;
 
 class ProductReviewController extends Controller {
@@ -15,13 +16,7 @@ class ProductReviewController extends Controller {
     ) {}
 
     public function store(Request $request): JsonResponse {
-        $customerIdHeader = $request->header("X-User-Id");
-        if (! $customerIdHeader || ! is_numeric($customerIdHeader) || (int) $customerIdHeader <= 0) {
-            return response()->json([
-                "error" => "UNAUTHORIZED",
-                "message" => "X-User-Id header is required",
-            ], 401);
-        }
+        $caller = AuthenticateIdentityToken::caller($request);
 
         $validated = $request->validate([
             "order_id" => ["required", "string"],
@@ -32,7 +27,7 @@ class ProductReviewController extends Controller {
         ]);
 
         try {
-            $review = $this->service->createReview((int) $customerIdHeader, $validated);
+            $review = $this->service->createReview($caller, $validated);
 
             return response()->json($review, 201);
         } catch (InvalidArgumentException $ex) {

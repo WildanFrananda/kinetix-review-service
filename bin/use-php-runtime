@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Points the service Dockerfile at a published php-runtime image, by digest.
+#
+#   bin/use-php-runtime registry.gitlab.com/.../php-runtime@sha256:<digest>
+#   bin/use-php-runtime                       # resolves the digest from the local daemon
+#
+# Two things happen: the FROM line is rewritten, and the extension-building layers — now the
+# base image's job — are removed from the service Dockerfile so the two cannot drift.
+#
+# By digest and never by tag: a tag is a moving pointer, and `bin/pin-base-images --check` in
+# the infrastructure gate refuses a FROM without one.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TAG="registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime:php8.5-grpc1"
+DOCKERFILE="$HERE/Dockerfile"
+
+ref="${1:-}"
+if [ -z "$ref" ]; then
+  ref="$(docker inspect --format='{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$TAG" 2>/dev/null || true)"
+  if [ -z "$ref" ]; then
+    echo "No digest for $TAG."
+    echo
+    echo "The image has to be pushed before it has one — a locally built image carries none."
+    echo "Either let the php-runtime CI job publish it, or push it yourself:"
+    echo
+    echo "    docker login registry.gitlab.com"
+    echo "    docker push $TAG"
+    echo
+    echo "then re-run this script."
+    exit 1
+  fi
+fi
+
+case "$ref" in
+  *@sha256:*) ;;
+  *) echo "'$ref' is not a digest reference. Expected <image>@sha256:<64 hex>."; exit 1 ;;
+esac
+
+python3 - "$DOCKERFILE" "$ref" <<'PY'
+import pathlib, re, sys
+
+path, ref = pathlib.Path(sys.argv[1]), sys.argv[2]
+s = path.read_text()
+
+old_from = re.search(r'^FROM dunglas/frankenphp:[^\n]*AS final$', s, re.M)
+if not old_from:
+    sys.exit("the service Dockerfile no longer starts its final stage from frankenphp; "
+             "it may already be pinned. Nothing was written.")
+
+s = s[:old_from.start()] + f"FROM {ref} AS final" + s[old_from.end():]
+
+# The three layers the base image now owns. Removed rather than left in place: two copies of an
+# extension list is two lists, and they diverge the first time one is edited.
+for pattern, label in [
+    (r'\nRUN set -eux; \\\n    apt-get update; \\\n    apt-get install --no-install-recommends -y libpq-dev[^\n]*\n(?:[^\n]*\n)*?    rm -rf /var/lib/apt/lists/\*;?\n', "runtime libraries"),
+    (r'\n# ORDER MATTERS[\s\S]*?rm -rf /var/lib/apt/lists/\* /tmp/pear\n', "the PECL compile"),
+    (r"\n# `pdo` and `opcache`[\s\S]*?docker-php-ext-install -j\"\$\(nproc\)\" pdo_pgsql pcntl; \\\n    rm -rf /var/lib/apt/lists/\*\n", "the bundled extensions"),
+    (r"\n# The extensions have to be present[\s\S]*?defined\(\"SIGINT\"\) \? 0 : 1\);'\n", "the extension assertions"),
+]:
+    s, n = re.subn(pattern, "\n", s, count=1)
+    print(f"  removed {label}" if n else f"  {label} was already absent")
+
+header = ("# The PHP runtime — FrankenPHP plus grpc, protobuf, pdo_pgsql and pcntl — is built by\n"
+          "# docker/php-runtime.Dockerfile and published by the php-runtime CI job. Pinned by digest:\n"
+          "# a tag is a moving pointer, and the extension set is exactly the thing that must not move\n"
+          "# under a service without somebody deciding it should.\n")
+s = s.replace(f"FROM {ref} AS final", header + f"FROM {ref} AS final", 1)
+
+path.write_text(s)
+print(f"  FROM -> {ref}")
+PY
+
+grep -q "@sha256:" "$DOCKERFILE" || { echo "the FROM line is not pinned after rewriting"; exit 1; }
+grep -q "pecl install grpc" "$DOCKERFILE" && { echo "the PECL compile is still in the service Dockerfile"; exit 1; }
+echo "  done. Rebuild with: docker compose build kinetix-review-service"

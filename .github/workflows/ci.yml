@@ -1,0 +1,49 @@
+name: CI
+
+# ⚠ PAIRED FILE: .gitlab-ci.yml
+# `origin` is GitHub and GitLab is a mirror. Both assert the same things and must be changed
+# together; if they drift, the two platforms disagree about whether the same commit is good.
+#
+# The php-runtime image is published from GitLab only. Its registry is the one whose credentials
+# exist without creating a new token — GitLab hands every job a CI_JOB_TOKEN scoped to its own
+# project registry. This workflow consumes the published image rather than rebuilding it, so a
+# 29-52 minute extension compile does not run twice on two platforms for the same commit.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime:php8.5-grpc1
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        # `.env.testing` is committed and carries everything the suite needs.
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Lint
+        run: ./vendor/bin/pint --test
+      - name: Pest
+        run: |
+          php vendor/bin/pest --colors=never
+          # A suite that runs no tests is a failed suite, not a passing one.
+          count=$(php vendor/bin/pest --colors=never 2>&1 | sed -n 's/.*Tests:.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p' | tail -1)
+          echo "executed ${count:-0} tests"
+          test "${count:-0}" -ge 15 || { echo "expected at least 15 tests, ran ${count:-0}"; exit 1; }
+
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the service image
+        run: |
+          test -f .dockerignore || { echo "no .dockerignore — the build context would carry .env and .git"; exit 1; }
+          docker build -t kinetix-review-service:ci .
+      - name: The image must not run as root
+        run: |
+          uid=$(docker run --rm --entrypoint sh kinetix-review-service:ci -c 'id -u')
+          test "$uid" != "0" || { echo "image runs as root"; exit 1; }
+          echo "runs as uid $uid"
