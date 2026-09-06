@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Contracts\Clients\OrderClientInterface;
 use App\Contracts\Repositories\DriverRatingRepositoryInterface;
 use App\Models\DriverRating;
+use App\Security\AccessClaims;
 use InvalidArgumentException;
 
 class DriverRatingService {
@@ -15,14 +16,14 @@ class DriverRatingService {
         private readonly OrderClientInterface $orderClient
     ) {}
 
-    public function createRating(int $customerId, array $data): DriverRating {
+    public function createRating(AccessClaims $caller, array $data): DriverRating {
+        $customerId = $caller->userId;
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
         if (! $order) {
             throw new InvalidArgumentException("Order not found.");
         }
 
-        $orderCustomerId = (int) ($order["customer_id"] ?? 0);
-        if ($orderCustomerId !== $customerId) {
+        if (($order["customer_principal_id"] ?? "") !== $caller->principalId) {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }
 

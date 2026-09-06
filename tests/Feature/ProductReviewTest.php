@@ -13,11 +13,15 @@ beforeEach(function () {
     $this->app->instance(TokenVerifier::class, IdentityTokens::verifier());
 });
 
-function deliveredOrder(string $id, int $customerId = 1001, string $status = "DELIVERED"): array {
+function deliveredOrder(
+    string $id,
+    string $principal = "11111111-2222-3333-4444-555555555555",
+    string $status = "DELIVERED"
+): array {
     return [
         "order_id" => $id,
         "order_number" => $id,
-        "customer_id" => $customerId,
+        "customer_principal_id" => $principal,
         "status" => $status,
         "items" => [["product_id" => "TSHIRT-BLK-M", "product_title" => "Kaos", "quantity" => 1]],
     ];
@@ -112,7 +116,7 @@ it("rejects a review for an order that does not exist", function () {
 });
 
 it("rejects a review for somebody else's order", function () {
-    $this->fakeOrderClient->addOrder("ORD-OTHER-001", deliveredOrder("ORD-OTHER-001", 2002));
+    $this->fakeOrderClient->addOrder("ORD-OTHER-001", deliveredOrder("ORD-OTHER-001", "22222222-0000-0000-0000-000000000000"));
 
     $response = $this->withHeaders(IdentityTokens::bearer(["uid" => 1001]))
         ->postJson("/api/v1/reviews/products", [
@@ -125,7 +129,7 @@ it("rejects a review for somebody else's order", function () {
 });
 
 it("rejects a review for an order that is not DELIVERED or COMPLETED", function () {
-    $this->fakeOrderClient->addOrder("ORD-PENDING-001", deliveredOrder("ORD-PENDING-001", 1001, "PAID"));
+    $this->fakeOrderClient->addOrder("ORD-PENDING-001", deliveredOrder("ORD-PENDING-001", "11111111-2222-3333-4444-555555555555", "PAID"));
 
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson("/api/v1/reviews/products", [

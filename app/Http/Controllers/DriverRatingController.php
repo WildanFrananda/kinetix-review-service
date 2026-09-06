@@ -26,7 +26,7 @@ class DriverRatingController extends Controller {
         ]);
 
         try {
-            $rating = $this->service->createRating($caller->userId, $validated);
+            $rating = $this->service->createRating($caller, $validated);
 
             return response()->json($rating, 201);
         } catch (InvalidArgumentException $ex) {

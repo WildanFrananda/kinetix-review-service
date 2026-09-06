@@ -24,8 +24,7 @@ class ProductReviewService {
             throw new InvalidArgumentException("Order not found.");
         }
 
-        $orderCustomerId = (int) ($order["customer_id"] ?? 0);
-        if ($orderCustomerId !== $customerId) {
+        if (($order["customer_principal_id"] ?? "") !== $caller->principalId) {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }
 

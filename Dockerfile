@@ -26,7 +26,21 @@ COPY composer.json composer.lock ./
 # `composer install` builds an optimized autoloader — without them it fails outright with
 # "Could not scan for classes inside generated/". Copied here rather than moved into the later
 # `COPY . .` so the dependency layer still caches on composer.json alone.
-COPY generated ./generated
+COPY bin ./bin
+
+# The wire contracts and the PHP classes generated from them. Fetched and generated rather than
+# committed: this repository tracks no .proto, which is what S9 measures.
+# apk, not apt-get: the vendor stage is composer:2, which is Alpine.
+RUN apk add --no-cache git protobuf \
+  && sh bin/sync-contracts \
+  && mkdir -p generated \
+  && protoc --php_out=generated -I .contracts/proto \
+       .contracts/proto/order/v1/order.proto .contracts/proto/common/v1/common.proto \
+  && apk del protobuf
+
+# The one hand-written stub: `grpc_php_plugin` is a separate binary and the generated service
+# client is fifteen lines of _simpleRequest.
+COPY generated/Order/V1/OrderServiceClient.php ./generated/Order/V1/OrderServiceClient.php
 
 RUN composer install \
       --no-dev \
