@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Clients;
 
 use App\Contracts\Clients\OrderClientInterface;
+use App\Observability\RequestId;
 use App\Security\ServiceIdentity;
 use Grpc\ChannelCredentials;
 use Order\V1\GetOrderDetailsRequest;
@@ -28,7 +29,7 @@ final class GrpcOrderClient implements OrderClientInterface {
         $request->setOrderId($orderId);
 
         /** @var array{0: ?GetOrderDetailsResponse, 1: \stdClass} $call */
-        $call = $this->stub->GetOrderDetails($request)->wait();
+        $call = $this->stub->GetOrderDetails($request, RequestId::metadata())->wait();
         [$response, $status] = $call;
 
         if ($status->code !== \Grpc\STATUS_OK || $response === null || ! $response->getFound()) {
