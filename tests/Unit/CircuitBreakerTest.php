@@ -72,3 +72,26 @@ it("re-opens a fresh window when the probe fails", function () {
 
     expect($breaker->allows())->toBeTrue();
 });
+
+it("lets go of a probe that never reported back", function () {
+    $breaker = new CircuitBreaker("test", 1, 0.05);
+    $breaker->recordFailure();
+    usleep(60_000);
+
+    expect($breaker->allows())->toBeTrue();
+
+    usleep(60_000);
+
+    expect($breaker->allows())->toBeTrue();
+});
+
+it("reports a wait that covers the outstanding probe, not a bare one second", function () {
+    $breaker = new CircuitBreaker("test", 1, 1.2);
+    $breaker->recordFailure();
+    usleep(1_250_000);
+
+    expect($breaker->allows())->toBeTrue();
+
+    expect($breaker->allows())->toBeFalse();
+    expect($breaker->retryAfterSeconds())->toBe(2);
+});

@@ -137,17 +137,18 @@ return [
     'warm' => [
         ...Octane::defaultServicesToWarm(),
 
-        // The two gRPC clients, kept between requests on purpose.
+        // The gRPC order client, kept between requests on purpose.
         //
-        // Binding them as singletons in AppServiceProvider is not enough: Octane rebuilds the
+        // Binding it as a singleton in AppServiceProvider is not enough: Octane rebuilds the
         // container for every request, so a singleton lives exactly one request and each call
-        // still paid a fresh TCP and HTTP/2 handshake to identity and to order. Verified by
+        // still paid a fresh TCP and HTTP/2 handshake to order-service. Verified by
         // spl_object_id changing on every request while the worker PID stayed the same.
         //
-        // Warming them is what actually reuses the channel, which is most of the reason for
-        // running a worker at all. Safe to share because neither client holds request state:
-        // both have no properties, and their constructors read only a hostname from config.
-        App\Contracts\Clients\IdentityClientInterface::class,
+        // Warming it is what actually reuses the channel, which is most of the reason for
+        // running a worker at all. It now also carries state that MUST survive the request:
+        // GrpcOrderClient holds a CircuitBreaker whose failure count and open window are only
+        // meaningful accumulated across requests. Un-warm this binding and the breaker is
+        // rebuilt fresh every request, which silently reduces it to decoration.
         App\Contracts\Clients\OrderClientInterface::class,
     ],
 

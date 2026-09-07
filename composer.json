@@ -13,6 +13,7 @@
         "firebase/php-jwt": "^7.1",
         "google/protobuf": ">=4.29",
         "grpc/grpc": "^1.82",
+        "guzzlehttp/guzzle": "^8.1",
         "laravel/framework": "^13.17",
         "laravel/octane": "^2.19",
         "laravel/sanctum": "^4.0",

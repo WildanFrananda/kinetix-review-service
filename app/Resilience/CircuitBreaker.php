@@ -9,7 +9,7 @@ final class CircuitBreaker {
 
     private float $openedAt = 0.0;
 
-    private bool $probeInFlight = false;
+    private float $probeStartedAt = 0.0;
 
     public function __construct(
         private readonly string $name,
@@ -22,15 +22,17 @@ final class CircuitBreaker {
             return true;
         }
 
-        if ($this->probeInFlight) {
+        $now = microtime(true);
+
+        if ($this->probeStartedAt !== 0.0 && $now - $this->probeStartedAt < $this->cooldownSeconds) {
             return false;
         }
 
-        if (microtime(true) - $this->openedAt < $this->cooldownSeconds) {
+        if ($now - $this->openedAt < $this->cooldownSeconds) {
             return false;
         }
 
-        $this->probeInFlight = true;
+        $this->probeStartedAt = $now;
 
         return true;
     }
@@ -38,12 +40,12 @@ final class CircuitBreaker {
     public function recordSuccess(): void {
         $this->failures = 0;
         $this->openedAt = 0.0;
-        $this->probeInFlight = false;
+        $this->probeStartedAt = 0.0;
     }
 
     public function recordFailure(): void {
-        if ($this->probeInFlight) {
-            $this->probeInFlight = false;
+        if ($this->probeStartedAt !== 0.0) {
+            $this->probeStartedAt = 0.0;
             $this->openedAt = microtime(true);
 
             return;
@@ -61,9 +63,13 @@ final class CircuitBreaker {
             return 0;
         }
 
-        $remaining = $this->cooldownSeconds - (microtime(true) - $this->openedAt);
+        $admitsAgainAt = $this->openedAt + $this->cooldownSeconds;
 
-        return (int) max(1, ceil($remaining));
+        if ($this->probeStartedAt !== 0.0) {
+            $admitsAgainAt = max($admitsAgainAt, $this->probeStartedAt + $this->cooldownSeconds);
+        }
+
+        return (int) max(1, ceil($admitsAgainAt - microtime(true)));
     }
 
     public function name(): string {

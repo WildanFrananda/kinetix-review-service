@@ -16,6 +16,12 @@ use Order\V1\GetOrderDetailsResponse;
 final class GrpcOrderClient implements OrderClientInterface {
     private const TIMEOUT_MICROSECONDS = 5_000_000;
 
+    private const STATUS_OK = 0;
+
+    private const STATUS_INVALID_ARGUMENT = 3;
+
+    private const STATUS_NOT_FOUND = 5;
+
     private readonly \Order\V1\OrderServiceClient $stub;
 
     private readonly CircuitBreaker $breaker;
@@ -37,24 +43,42 @@ final class GrpcOrderClient implements OrderClientInterface {
             throw OrderServiceUnavailableException::breakerOpen($this->breaker->retryAfterSeconds());
         }
 
-        $request = new GetOrderDetailsRequest();
-        $request->setOrderId($orderId);
+        try {
+            $request = new GetOrderDetailsRequest();
+            $request->setOrderId($orderId);
 
-        /** @var array{0: ?GetOrderDetailsResponse, 1: \stdClass} $call */
-        $call = $this->stub->GetOrderDetails(
-            $request,
-            RequestId::metadata(),
-            ["timeout" => self::TIMEOUT_MICROSECONDS]
-        )->wait();
-        [$response, $status] = $call;
+            /** @var array{0: ?GetOrderDetailsResponse, 1: \stdClass} $call */
+            $call = $this->stub->GetOrderDetails(
+                $request,
+                RequestId::metadata(),
+                ["timeout" => self::TIMEOUT_MICROSECONDS]
+            )->wait();
+            [$response, $status] = $call;
 
-        if (self::isTransportFailure($status->code)) {
+            $answered = self::isAnswerAboutTheOrder($status->code);
+            $code = $status->code;
+            $details = $status->details ?? "";
+        } catch (\Throwable $ex) {
             $this->breaker->recordFailure();
 
-            Log::warning("order-service GetOrderDetails failed in transport", [
+            Log::warning("order-service GetOrderDetails threw before answering", [
                 "breaker" => $this->breaker->name(),
-                "grpc_code" => $status->code,
-                "grpc_details" => $status->details ?? "",
+                "exception" => $ex::class,
+                "message" => $ex->getMessage(),
+                "order_id" => $orderId,
+                "request_id" => RequestId::current() ?? "-",
+            ]);
+
+            throw OrderServiceUnavailableException::transport();
+        }
+
+        if (! $answered) {
+            $this->breaker->recordFailure();
+
+            Log::warning("order-service GetOrderDetails did not answer about the order", [
+                "breaker" => $this->breaker->name(),
+                "grpc_code" => $code,
+                "grpc_details" => $details,
                 "order_id" => $orderId,
                 "request_id" => RequestId::current() ?? "-",
             ]);
@@ -64,7 +88,7 @@ final class GrpcOrderClient implements OrderClientInterface {
 
         $this->breaker->recordSuccess();
 
-        if ($status->code !== \Grpc\STATUS_OK || $response === null || ! $response->getFound()) {
+        if ($code !== self::STATUS_OK || $response === null || ! $response->getFound()) {
             return null;
         }
 
@@ -91,11 +115,10 @@ final class GrpcOrderClient implements OrderClientInterface {
         ];
     }
 
-    private static function isTransportFailure(int $code): bool {
-        return $code === \Grpc\STATUS_UNAVAILABLE
-            || $code === \Grpc\STATUS_DEADLINE_EXCEEDED
-            || $code === \Grpc\STATUS_RESOURCE_EXHAUSTED
-            || $code === \Grpc\STATUS_INTERNAL;
+    private static function isAnswerAboutTheOrder(int $code): bool {
+        return $code === self::STATUS_OK
+            || $code === self::STATUS_NOT_FOUND
+            || $code === self::STATUS_INVALID_ARGUMENT;
     }
 
     private static function major(?\Common\V1\Money $money): string {
