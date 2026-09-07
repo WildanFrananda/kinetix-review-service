@@ -11,10 +11,14 @@
 # identity and order survive between requests instead of paying a TCP + HTTP/2 handshake on
 # every call. Classic mode would have performed like FPM; the gain is the worker, not the server.
 #
-# Worker mode is only safe because review has nothing that leaks across requests: every binding
-# in AppServiceProvider is `bind` and not `singleton`, there are zero static properties in app/,
-# zero `env()` calls outside config/, and nothing injects Request into a constructor. That was
-# checked before this file was written, not assumed.
+# Worker mode is safe here not because nothing is shared but because nothing shared holds request
+# state. Two bindings in AppServiceProvider are `singleton` on purpose — the order gRPC client and
+# the token verifier — and the order client is additionally warmed in config/octane.php, so it
+# survives Octane's per-request container clone instead of living one request. That sharing is the
+# point twice over: it is what reuses the HTTP/2 channel, and it is what lets the circuit breaker
+# inside GrpcOrderClient accumulate failures instead of resetting before it could ever open.
+# Neither object stores anything belonging to a caller, and nothing injects Request into a
+# constructor. Do not "fix" these back to `bind`.
 
 FROM composer:2@sha256:d020706319701a44468968321dccd0fce6620190159a7a9ec195d78e6e971c71 AS vendor
 

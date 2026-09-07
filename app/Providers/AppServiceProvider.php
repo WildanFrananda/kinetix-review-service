@@ -11,6 +11,7 @@ use App\Contracts\Repositories\ProductReviewRepositoryInterface;
 use App\Repositories\EloquentDriverRatingRepository;
 use App\Repositories\EloquentProductReviewRepository;
 use App\Security\TokenVerifier;
+use GuzzleHttp\Client;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -24,7 +25,8 @@ class AppServiceProvider extends ServiceProvider {
             return new TokenVerifier(
                 self::required("JWT_ISSUER"),
                 self::required("JWT_AUDIENCE"),
-                self::required("IDENTITY_JWKS_URL")
+                self::required("IDENTITY_JWKS_URL"),
+                new Client(["connect_timeout" => 2.0, "timeout" => 3.0])
             );
         });
     }

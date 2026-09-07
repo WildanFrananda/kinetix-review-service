@@ -105,6 +105,21 @@ it("creates a rating, attributing it to the token's account", function () {
     ]);
 });
 
+it("answers 503 with a Retry-After when the breaker has stopped dialling order-service", function () {
+    $this->fakeOrderClient->markUnreachable("ORD-DELIVERED-001", 30);
+
+    $response = $this->withHeaders(IdentityTokens::bearer())
+        ->postJson("/api/v1/reviews/drivers", [
+            "order_id" => "ORD-DELIVERED-001",
+            "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
+            "rating" => 5,
+        ]);
+
+    $response->assertStatus(503)
+        ->assertHeader("Retry-After", "30")
+        ->assertJson(["error" => "SERVICE_UNAVAILABLE"]);
+});
+
 it("reads a driver's ratings without a token", function () {
     $this->fakeOrderClient->addOrder("ORD-DELIVERED-001", ratedOrder("ORD-DELIVERED-001"));
     $this->withHeaders(IdentityTokens::bearer())->postJson("/api/v1/reviews/drivers", [

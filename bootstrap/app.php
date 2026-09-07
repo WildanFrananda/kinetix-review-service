@@ -34,10 +34,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
             if ($e instanceof HttpExceptionInterface) {
                 return new JsonResponse([
-                    "error" => "REQUEST_REFUSED",
+                    "error" => $e->getStatusCode() === 503 ? "SERVICE_UNAVAILABLE" : "REQUEST_REFUSED",
                     "message" => $e->getMessage(),
                     "traceId" => RequestId::current() ?? "-",
-                ], $e->getStatusCode());
+                ], $e->getStatusCode(), $e->getHeaders());
             }
 
             Log::error("unhandled exception serving {$request->method()} {$request->path()}", [

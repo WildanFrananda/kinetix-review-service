@@ -6,8 +6,10 @@ namespace App\Clients;
 
 use App\Contracts\Clients\OrderClientInterface;
 use App\Observability\RequestId;
+use App\Resilience\CircuitBreaker;
 use App\Security\ServiceIdentity;
 use Grpc\ChannelCredentials;
+use Illuminate\Support\Facades\Log;
 use Order\V1\GetOrderDetailsRequest;
 use Order\V1\GetOrderDetailsResponse;
 
@@ -15,6 +17,8 @@ final class GrpcOrderClient implements OrderClientInterface {
     private const TIMEOUT_MICROSECONDS = 5_000_000;
 
     private readonly \Order\V1\OrderServiceClient $stub;
+
+    private readonly CircuitBreaker $breaker;
 
     public function __construct(string $hostname = "", ?ChannelCredentials $credentials = null) {
         if ($hostname === "") {
@@ -24,9 +28,15 @@ final class GrpcOrderClient implements OrderClientInterface {
         $this->stub = new \Order\V1\OrderServiceClient($hostname, [
             "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
         ]);
+
+        $this->breaker = new CircuitBreaker("order-service");
     }
 
     public function getOrderDetails(string $orderId): ?array {
+        if (! $this->breaker->allows()) {
+            throw OrderServiceUnavailableException::breakerOpen($this->breaker->retryAfterSeconds());
+        }
+
         $request = new GetOrderDetailsRequest();
         $request->setOrderId($orderId);
 
@@ -37,6 +47,22 @@ final class GrpcOrderClient implements OrderClientInterface {
             ["timeout" => self::TIMEOUT_MICROSECONDS]
         )->wait();
         [$response, $status] = $call;
+
+        if (self::isTransportFailure($status->code)) {
+            $this->breaker->recordFailure();
+
+            Log::warning("order-service GetOrderDetails failed in transport", [
+                "breaker" => $this->breaker->name(),
+                "grpc_code" => $status->code,
+                "grpc_details" => $status->details ?? "",
+                "order_id" => $orderId,
+                "request_id" => RequestId::current() ?? "-",
+            ]);
+
+            throw OrderServiceUnavailableException::transport();
+        }
+
+        $this->breaker->recordSuccess();
 
         if ($status->code !== \Grpc\STATUS_OK || $response === null || ! $response->getFound()) {
             return null;
@@ -63,6 +89,13 @@ final class GrpcOrderClient implements OrderClientInterface {
             "final_total" => self::major($response->getFinalTotal()),
             "items" => $lines,
         ];
+    }
+
+    private static function isTransportFailure(int $code): bool {
+        return $code === \Grpc\STATUS_UNAVAILABLE
+            || $code === \Grpc\STATUS_DEADLINE_EXCEEDED
+            || $code === \Grpc\STATUS_RESOURCE_EXHAUSTED
+            || $code === \Grpc\STATUS_INTERNAL;
     }
 
     private static function major(?\Common\V1\Money $money): string {

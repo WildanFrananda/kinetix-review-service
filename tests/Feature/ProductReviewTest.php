@@ -115,6 +115,19 @@ it("rejects a review for an order that does not exist", function () {
     $response->assertStatus(422)->assertJson(["error" => "UNPROCESSABLE_ENTITY"]);
 });
 
+it("answers 503, not a 422 saying the order is missing, when order-service is unreachable", function () {
+    $this->fakeOrderClient->markUnreachable("ORD-DELIVERED-001");
+
+    $response = $this->withHeaders(IdentityTokens::bearer())
+        ->postJson("/api/v1/reviews/products", [
+            "order_id" => "ORD-DELIVERED-001",
+            "product_id" => "TSHIRT-BLK-M",
+            "rating" => 5,
+        ]);
+
+    $response->assertStatus(503)->assertJson(["error" => "SERVICE_UNAVAILABLE"]);
+});
+
 it("rejects a review for somebody else's order", function () {
     $this->fakeOrderClient->addOrder("ORD-OTHER-001", deliveredOrder("ORD-OTHER-001", "22222222-0000-0000-0000-000000000000"));
 
