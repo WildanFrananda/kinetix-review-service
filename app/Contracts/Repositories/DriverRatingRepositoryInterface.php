@@ -10,9 +10,9 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 interface DriverRatingRepositoryInterface {
     public function create(array $data): DriverRating;
 
-    public function getPaginatedByDriverId(int $driverId, int $perPage = 15): LengthAwarePaginator;
+    public function getPaginatedByDriverId(string $driverPrincipalId, int $perPage = 15): LengthAwarePaginator;
 
-    public function getAverageRatingByDriverId(int $driverId): float;
+    public function getAverageRatingByDriverId(string $driverPrincipalId): float;
 
-    public function getTotalCountByDriverId(int $driverId): int;
+    public function getTotalCountByDriverId(string $driverPrincipalId): int;
 }

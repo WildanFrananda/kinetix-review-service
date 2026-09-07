@@ -29,19 +29,19 @@ class EloquentProductReviewRepository implements ProductReviewRepositoryInterfac
         return ProductReview::where("product_id", $productId)->count();
     }
 
-    public function getPaginatedByMerchantId(int $merchantId, int $perPage = 15): LengthAwarePaginator {
-        return ProductReview::where("merchant_id", $merchantId)
+    public function getPaginatedByMerchantId(string $merchantPrincipalId, int $perPage = 15): LengthAwarePaginator {
+        return ProductReview::where("merchant_principal_id", $merchantPrincipalId)
             ->latest()
             ->paginate($perPage);
     }
 
-    public function getAverageRatingByMerchantId(int $merchantId): float {
-        $avg = ProductReview::where("merchant_id", $merchantId)->avg("rating");
+    public function getAverageRatingByMerchantId(string $merchantPrincipalId): float {
+        $avg = ProductReview::where("merchant_principal_id", $merchantPrincipalId)->avg("rating");
 
         return round((float) ($avg ?? 0.0), 2);
     }
 
-    public function getTotalCountByMerchantId(int $merchantId): int {
-        return ProductReview::where("merchant_id", $merchantId)->count();
+    public function getTotalCountByMerchantId(string $merchantPrincipalId): int {
+        return ProductReview::where("merchant_principal_id", $merchantPrincipalId)->count();
     }
 }

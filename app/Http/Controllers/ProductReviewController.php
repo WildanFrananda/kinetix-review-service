@@ -21,7 +21,7 @@ class ProductReviewController extends Controller {
         $validated = $request->validate([
             "order_id" => ["required", "string"],
             "product_id" => ["required", "string"],
-            "merchant_id" => ["nullable", "integer"],
+            "merchant_principal_id" => ["nullable", "string", "max:64"],
             "rating" => ["required", "integer", "min:1", "max:5"],
             "comment" => ["nullable", "string", "max:1000"],
         ]);
@@ -44,8 +44,8 @@ class ProductReviewController extends Controller {
         return response()->json($summary);
     }
 
-    public function getMerchantReviews(int $merchantId): JsonResponse {
-        $summary = $this->service->getMerchantReviewSummary($merchantId);
+    public function getMerchantReviews(string $merchantPrincipalId): JsonResponse {
+        $summary = $this->service->getMerchantReviewSummary($merchantPrincipalId);
 
         return response()->json($summary);
     }

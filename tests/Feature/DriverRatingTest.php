@@ -30,7 +30,7 @@ function ratedOrder(
 it("refuses a request carrying no token", function () {
     $response = $this->postJson("/api/v1/reviews/drivers", [
         "order_id" => "ORD-TEST-001",
-        "driver_id" => 99,
+        "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
         "rating" => 5,
     ]);
 
@@ -41,7 +41,7 @@ it("refuses a request carrying only an X-User-Id header", function () {
     $response = $this->withHeader("X-User-Id", "1001")
         ->postJson("/api/v1/reviews/drivers", [
             "order_id" => "ORD-TEST-001",
-            "driver_id" => 99,
+            "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
             "rating" => 5,
         ]);
 
@@ -52,7 +52,7 @@ it("rejects a rating for an order that does not exist", function () {
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson("/api/v1/reviews/drivers", [
             "order_id" => "NON-EXISTENT-ORDER",
-            "driver_id" => 99,
+            "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
             "rating" => 5,
         ]);
 
@@ -65,7 +65,7 @@ it("rejects a rating for somebody else's order", function () {
     $response = $this->withHeaders(IdentityTokens::bearer(["uid" => 1001]))
         ->postJson("/api/v1/reviews/drivers", [
             "order_id" => "ORD-OTHER-001",
-            "driver_id" => 99,
+            "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
             "rating" => 5,
         ]);
 
@@ -78,7 +78,7 @@ it("rejects a rating for an order that is not DELIVERED or COMPLETED", function 
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson("/api/v1/reviews/drivers", [
             "order_id" => "ORD-PENDING-001",
-            "driver_id" => 99,
+            "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
             "rating" => 5,
         ]);
 
@@ -91,15 +91,15 @@ it("creates a rating, attributing it to the token's account", function () {
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson("/api/v1/reviews/drivers", [
             "order_id" => "ORD-DELIVERED-001",
-            "driver_id" => 99,
+            "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
             "rating" => 5,
             "comment" => "Very polite driver!",
         ]);
 
     $response->assertStatus(201)->assertJson([
         "order_id" => "ORD-DELIVERED-001",
-        "customer_id" => 1001,
-        "driver_id" => 99,
+        "customer_principal_id" => "11111111-2222-3333-4444-555555555555",
+        "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
         "rating" => 5,
         "comment" => "Very polite driver!",
     ]);
@@ -109,11 +109,11 @@ it("reads a driver's ratings without a token", function () {
     $this->fakeOrderClient->addOrder("ORD-DELIVERED-001", ratedOrder("ORD-DELIVERED-001"));
     $this->withHeaders(IdentityTokens::bearer())->postJson("/api/v1/reviews/drivers", [
         "order_id" => "ORD-DELIVERED-001",
-        "driver_id" => 99,
+        "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
         "rating" => 4,
     ]);
 
-    $response = $this->getJson("/api/v1/reviews/drivers/99");
+    $response = $this->getJson("/api/v1/reviews/drivers/b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914");
 
     $response->assertStatus(200);
 });

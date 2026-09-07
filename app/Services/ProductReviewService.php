@@ -17,7 +17,7 @@ class ProductReviewService {
     ) {}
 
     public function createReview(AccessClaims $caller, array $data): ProductReview {
-        $customerId = $caller->userId;
+        $customerPrincipalId = $caller->principalId;
 
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
         if (! $order) {
@@ -49,9 +49,9 @@ class ProductReviewService {
 
         return $this->repository->create([
             "order_id" => $data["order_id"],
-            "customer_id" => $customerId,
+            "customer_principal_id" => $customerPrincipalId,
             "product_id" => $data["product_id"],
-            "merchant_id" => $data["merchant_id"] ?? null,
+            "merchant_principal_id" => $data["merchant_principal_id"] ?? null,
             "rating" => $data["rating"],
             "comment" => $data["comment"] ?? null,
         ]);
@@ -72,13 +72,13 @@ class ProductReviewService {
         ];
     }
 
-    public function getMerchantReviewSummary(int $merchantId): array {
-        $reviews = $this->repository->getPaginatedByMerchantId($merchantId);
-        $avgRating = $this->repository->getAverageRatingByMerchantId($merchantId);
-        $totalCount = $this->repository->getTotalCountByMerchantId($merchantId);
+    public function getMerchantReviewSummary(string $merchantPrincipalId): array {
+        $reviews = $this->repository->getPaginatedByMerchantId($merchantPrincipalId);
+        $avgRating = $this->repository->getAverageRatingByMerchantId($merchantPrincipalId);
+        $totalCount = $this->repository->getTotalCountByMerchantId($merchantPrincipalId);
 
         return [
-            "merchant_id" => $merchantId,
+            "merchant_principal_id" => $merchantPrincipalId,
             "average_rating" => $avgRating,
             "total_reviews" => $totalCount,
             "data" => $reviews->items(),

@@ -16,9 +16,9 @@ interface ProductReviewRepositoryInterface {
 
     public function getTotalCountByProductId(string $productId): int;
 
-    public function getPaginatedByMerchantId(int $merchantId, int $perPage = 15): LengthAwarePaginator;
+    public function getPaginatedByMerchantId(string $merchantPrincipalId, int $perPage = 15): LengthAwarePaginator;
 
-    public function getAverageRatingByMerchantId(int $merchantId): float;
+    public function getAverageRatingByMerchantId(string $merchantPrincipalId): float;
 
-    public function getTotalCountByMerchantId(int $merchantId): int;
+    public function getTotalCountByMerchantId(string $merchantPrincipalId): int;
 }

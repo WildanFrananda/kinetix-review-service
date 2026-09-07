@@ -15,16 +15,14 @@ class ProductReview extends Model {
 
     protected $fillable = [
         "order_id",
-        "customer_id",
+        "customer_principal_id",
         "product_id",
-        "merchant_id",
+        "merchant_principal_id",
         "rating",
         "comment",
     ];
 
     protected $casts = [
-        "customer_id" => "integer",
-        "merchant_id" => "integer",
         "rating" => "integer",
     ];
 }

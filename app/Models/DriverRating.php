@@ -15,15 +15,13 @@ class DriverRating extends Model {
 
     protected $fillable = [
         "order_id",
-        "customer_id",
-        "driver_id",
+        "customer_principal_id",
+        "driver_principal_id",
         "rating",
         "comment",
     ];
 
     protected $casts = [
-        "customer_id" => "integer",
-        "driver_id" => "integer",
         "rating" => "integer",
     ];
 }

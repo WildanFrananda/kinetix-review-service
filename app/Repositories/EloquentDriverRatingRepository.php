@@ -13,19 +13,19 @@ class EloquentDriverRatingRepository implements DriverRatingRepositoryInterface 
         return DriverRating::create($data);
     }
 
-    public function getPaginatedByDriverId(int $driverId, int $perPage = 15): LengthAwarePaginator {
-        return DriverRating::where("driver_id", $driverId)
+    public function getPaginatedByDriverId(string $driverPrincipalId, int $perPage = 15): LengthAwarePaginator {
+        return DriverRating::where("driver_principal_id", $driverPrincipalId)
             ->latest()
             ->paginate($perPage);
     }
 
-    public function getAverageRatingByDriverId(int $driverId): float {
-        $avg = DriverRating::where("driver_id", $driverId)->avg("rating");
+    public function getAverageRatingByDriverId(string $driverPrincipalId): float {
+        $avg = DriverRating::where("driver_principal_id", $driverPrincipalId)->avg("rating");
 
         return round((float) ($avg ?? 0.0), 2);
     }
 
-    public function getTotalCountByDriverId(int $driverId): int {
-        return DriverRating::where("driver_id", $driverId)->count();
+    public function getTotalCountByDriverId(string $driverPrincipalId): int {
+        return DriverRating::where("driver_principal_id", $driverPrincipalId)->count();
     }
 }

@@ -161,16 +161,16 @@ it("creates a review, attributing it to the token's account", function () {
         ->postJson("/api/v1/reviews/products", [
             "order_id" => "ORD-DELIVERED-001",
             "product_id" => "TSHIRT-BLK-M",
-            "merchant_id" => 50,
+            "merchant_principal_id" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
             "rating" => 5,
             "comment" => "Awesome product!",
         ]);
 
     $response->assertStatus(201)->assertJson([
         "order_id" => "ORD-DELIVERED-001",
-        "customer_id" => 1001,
+        "customer_principal_id" => "11111111-2222-3333-4444-555555555555",
         "product_id" => "TSHIRT-BLK-M",
-        "merchant_id" => 50,
+        "merchant_principal_id" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
         "rating" => 5,
         "comment" => "Awesome product!",
     ]);

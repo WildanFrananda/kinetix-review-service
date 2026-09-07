@@ -20,7 +20,7 @@ class DriverRatingController extends Controller {
 
         $validated = $request->validate([
             "order_id" => ["required", "string"],
-            "driver_id" => ["required", "integer"],
+            "driver_principal_id" => ["required", "string", "max:64"],
             "rating" => ["required", "integer", "min:1", "max:5"],
             "comment" => ["nullable", "string", "max:1000"],
         ]);
@@ -37,8 +37,8 @@ class DriverRatingController extends Controller {
         }
     }
 
-    public function getDriverRatings(int $driverId): JsonResponse {
-        $summary = $this->service->getDriverRatingSummary($driverId);
+    public function getDriverRatings(string $driverPrincipalId): JsonResponse {
+        $summary = $this->service->getDriverRatingSummary($driverPrincipalId);
 
         return response()->json($summary);
     }
