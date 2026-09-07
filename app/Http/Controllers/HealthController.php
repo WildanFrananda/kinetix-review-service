@@ -13,8 +13,6 @@ class HealthController extends Controller {
         return response()->json([
             "status" => "ok",
             "service" => "kinetix-review-service",
-            "framework" => "Laravel 13 (PHP 8.5.7)",
-            "timestamp" => now()->toIso8601String(),
         ]);
     }
 

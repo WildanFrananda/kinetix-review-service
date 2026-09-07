@@ -12,6 +12,8 @@ use Order\V1\GetOrderDetailsRequest;
 use Order\V1\GetOrderDetailsResponse;
 
 final class GrpcOrderClient implements OrderClientInterface {
+    private const TIMEOUT_MICROSECONDS = 5_000_000;
+
     private readonly \Order\V1\OrderServiceClient $stub;
 
     public function __construct(string $hostname = "", ?ChannelCredentials $credentials = null) {
@@ -29,7 +31,11 @@ final class GrpcOrderClient implements OrderClientInterface {
         $request->setOrderId($orderId);
 
         /** @var array{0: ?GetOrderDetailsResponse, 1: \stdClass} $call */
-        $call = $this->stub->GetOrderDetails($request, RequestId::metadata())->wait();
+        $call = $this->stub->GetOrderDetails(
+            $request,
+            RequestId::metadata(),
+            ["timeout" => self::TIMEOUT_MICROSECONDS]
+        )->wait();
         [$response, $status] = $call;
 
         if ($status->code !== \Grpc\STATUS_OK || $response === null || ! $response->getFound()) {
