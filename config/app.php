@@ -27,6 +27,12 @@ return [
     | kinetix-infrastructure/scripts/metrics_conformance.sh looks for when it hunts identifiers
     | that escaped into label values, and it cannot tell one from an order id.
     |
+    | Whatever is set here is narrowed by App\Observability\VersionLabel before it becomes a
+    | label: characters outside [A-Za-z0-9._+-] are dropped and the result is cut to sixteen, so a
+    | sha, a uuid or an address in this variable cannot fail the gate for the whole service. That
+    | is a backstop, not a licence — a value that needs cutting is published by its first sixteen
+    | characters, so set something short and the label says the whole of it.
+    |
     */
 
     'version' => env('APP_VERSION', '0.0.0-dev'),

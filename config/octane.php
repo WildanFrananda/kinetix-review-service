@@ -138,6 +138,7 @@ return [
         ...Octane::defaultServicesToWarm(),
 
         App\Contracts\Clients\OrderClientInterface::class,
+        App\Contracts\Observability\MetricStoreInterface::class,
         App\Observability\MetricsRegistry::class,
     ],
 
@@ -253,9 +254,13 @@ return [
     | explicit grace_period, Caddy shuts its HTTP servers down with a context that has no
     | deadline: a request that never finishes holds the process open past compose's 30s
     | stop_grace_period and the container is killed rather than stopped. This is the innermost of
-    | three numbers — Caddy waits 20s, App\Console\OctaneDrain waits 25s for Caddy, and compose
-    | gives the container 30s — and it is the answer to "what happens to work that outlives the
-    | drain": Caddy closes the connection under it.
+    | three numbers — Caddy waits 20s, App\Console\OctaneServerExitWait holds PID 1 open for 25s
+    | while the server exits, and compose gives the container 30s — and it is the answer to "what
+    | happens to work that outlives the shutdown": Caddy closes the connection under it.
+    |
+    | This line, not the PHP hook, is what finishes in-flight requests. Measured A/B on two real
+    | containers: without it Caddy logs 'servers shutting down with eternal grace period', with it
+    | 'servers shutting down; grace period initiated, duration 20'.
     |
     | The literal tab matters: the Caddyfile stub expands this inside the global options block,
     | one directive per line.

@@ -4,24 +4,19 @@ declare(strict_types=1);
 
 namespace App\Observability;
 
+use App\Contracts\Observability\MetricStoreInterface;
+
 final class HistogramFamily {
-    /** @var array<string, float[]> tallies per bucket, in bucket order, excluding +Inf */
-    private array $tallies = [];
+    private const SUM = "sum";
 
-    /** @var array<string, float> */
-    private array $sums = [];
-
-    /** @var array<string, float> */
-    private array $counts = [];
-
-    /** @var array<string, string[]> */
-    private array $labelValues = [];
+    private const COUNT = "count";
 
     /**
      * @param string[] $labelNames
      * @param float[] $buckets upper bounds in ascending order; +Inf is implied and never listed
      */
     public function __construct(
+        private readonly MetricStoreInterface $store,
         private readonly string $name,
         private readonly string $help,
         private readonly array $labelNames,
@@ -29,20 +24,15 @@ final class HistogramFamily {
     ) {}
 
     /**
-     * Render the family at zero for a label combination that has been observed nothing, so the
-     * metric is present on a worker that has not served a request yet. See CounterFamily.
-     *
      * @param string[] $labelValues
      */
     public function initialise(array $labelValues): void {
-        $key = PrometheusText::key($labelValues);
-
-        if (! array_key_exists($key, $this->counts)) {
-            $this->tallies[$key] = array_fill(0, count($this->buckets), 0.0);
-            $this->sums[$key] = 0.0;
-            $this->counts[$key] = 0.0;
-            $this->labelValues[$key] = $labelValues;
+        foreach (array_keys($this->buckets) as $index) {
+            $this->store->add($this->key(self::bucket($index), $labelValues), 0.0);
         }
+
+        $this->store->add($this->key(self::SUM, $labelValues), 0.0);
+        $this->store->add($this->key(self::COUNT, $labelValues), 0.0);
     }
 
     /**
@@ -51,35 +41,45 @@ final class HistogramFamily {
     public function observe(float $value, array $labelValues): void {
         $this->initialise($labelValues);
 
-        $key = PrometheusText::key($labelValues);
-
         foreach ($this->buckets as $index => $upperBound) {
             if ($value <= $upperBound) {
-                $this->tallies[$key][$index] += 1.0;
+                $this->store->add($this->key(self::bucket($index), $labelValues), 1.0);
 
                 break;
             }
         }
 
-        $this->sums[$key] += $value;
-        $this->counts[$key] += 1.0;
+        $this->store->add($this->key(self::SUM, $labelValues), $value);
+        $this->store->add($this->key(self::COUNT, $labelValues), 1.0);
     }
 
-    public function render(): string {
+    /**
+     * @param array<string, float> $samples
+     */
+    public function render(array $samples): string {
         $lines = [
-            "# HELP {$this->name} {$this->help}",
+            "# HELP {$this->name} " . PrometheusText::help($this->help),
             "# TYPE {$this->name} histogram",
         ];
 
-        $keys = array_keys($this->counts);
-        sort($keys);
+        /** @var array<string, string[]> $series */
+        $series = [];
 
-        foreach ($keys as $key) {
-            $labelValues = $this->labelValues[$key];
+        foreach (array_keys($samples) as $key) {
+            $sample = SampleKey::decode((string) $key, $this->name);
+
+            if ($sample !== null) {
+                $series[PrometheusText::key($sample["labels"])] = $sample["labels"];
+            }
+        }
+
+        ksort($series);
+
+        foreach ($series as $labelValues) {
             $cumulative = 0.0;
 
             foreach ($this->buckets as $index => $upperBound) {
-                $cumulative += $this->tallies[$key][$index];
+                $cumulative += $samples[$this->key(self::bucket($index), $labelValues)] ?? 0.0;
                 $labels = PrometheusText::labels(
                     [...$this->labelNames, "le"],
                     [...$labelValues, PrometheusText::value($upperBound)]
@@ -87,17 +87,31 @@ final class HistogramFamily {
                 $lines[] = "{$this->name}_bucket{$labels} " . PrometheusText::value($cumulative);
             }
 
+            $count = $samples[$this->key(self::COUNT, $labelValues)] ?? 0.0;
+            $sum = $samples[$this->key(self::SUM, $labelValues)] ?? 0.0;
+
             $infinite = PrometheusText::labels(
                 [...$this->labelNames, "le"],
                 [...$labelValues, "+Inf"]
             );
-            $lines[] = "{$this->name}_bucket{$infinite} " . PrometheusText::value($this->counts[$key]);
+            $lines[] = "{$this->name}_bucket{$infinite} " . PrometheusText::value($count);
 
             $labels = PrometheusText::labels($this->labelNames, $labelValues);
-            $lines[] = "{$this->name}_sum{$labels} " . PrometheusText::value($this->sums[$key]);
-            $lines[] = "{$this->name}_count{$labels} " . PrometheusText::value($this->counts[$key]);
+            $lines[] = "{$this->name}_sum{$labels} " . PrometheusText::value($sum);
+            $lines[] = "{$this->name}_count{$labels} " . PrometheusText::value($count);
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * @param string[] $labelValues
+     */
+    private function key(string $kind, array $labelValues): string {
+        return SampleKey::encode($this->name, $kind, $labelValues);
+    }
+
+    private static function bucket(int $index): string {
+        return "bucket:{$index}";
     }
 }

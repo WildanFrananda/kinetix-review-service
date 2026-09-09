@@ -12,9 +12,15 @@ final class JsonLineFormatter extends NormalizerFormatter {
 
     public const NO_REQUEST_ID = "-";
 
+    public const MAX_LINE_BYTES = 16384;
+
     private const RESERVED = ["timestamp", "level", "logger", "message", self::REQUEST_ID_FIELD];
 
     private const MAX_TRACE_FRAMES = 20;
+
+    private const MAX_MESSAGE_BYTES = 1024;
+
+    private const MAX_REQUEST_ID_BYTES = 256;
 
     public function __construct() {
         parent::__construct("Y-m-d\TH:i:s.vP");
@@ -48,7 +54,28 @@ final class JsonLineFormatter extends NormalizerFormatter {
             }
         }
 
-        return $this->toJson($line, true) . "\n";
+        $encoded = $this->toJson($line, true);
+
+        if (strlen($encoded) <= self::MAX_LINE_BYTES) {
+            return $encoded . "\n";
+        }
+
+        return $this->toJson([
+            "timestamp" => $line["timestamp"],
+            "level" => $line["level"],
+            "logger" => $line["logger"],
+            "message" => self::cut((string) $line["message"], self::MAX_MESSAGE_BYTES),
+            self::REQUEST_ID_FIELD => self::cut(
+                (string) $line[self::REQUEST_ID_FIELD],
+                self::MAX_REQUEST_ID_BYTES
+            ),
+            "truncated" => true,
+            "original_line_bytes" => strlen($encoded),
+        ], true) . "\n";
+    }
+
+    private static function cut(string $value, int $bytes): string {
+        return mb_strcut($value, 0, $bytes, "UTF-8");
     }
 
     private static function bounded(mixed $value): mixed {

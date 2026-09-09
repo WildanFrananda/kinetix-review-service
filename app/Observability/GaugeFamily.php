@@ -32,7 +32,7 @@ final class GaugeFamily {
 
     public function render(): string {
         $lines = [
-            "# HELP {$this->name} {$this->help}",
+            "# HELP {$this->name} " . PrometheusText::help($this->help),
             "# TYPE {$this->name} gauge",
         ];
 

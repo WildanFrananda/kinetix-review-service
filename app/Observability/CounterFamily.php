@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace App\Observability;
 
-final class CounterFamily {
-    /** @var array<string, float> */
-    private array $values = [];
+use App\Contracts\Observability\MetricStoreInterface;
 
-    /** @var array<string, string[]> */
-    private array $labelValues = [];
+final class CounterFamily {
+    private const KIND = "";
 
     /**
      * @param string[] $labelNames
      */
     public function __construct(
+        private readonly MetricStoreInterface $store,
         private readonly string $name,
         private readonly string $help,
         private readonly array $labelNames
@@ -24,36 +23,40 @@ final class CounterFamily {
      * @param string[] $labelValues
      */
     public function initialise(array $labelValues): void {
-        $key = PrometheusText::key($labelValues);
-
-        if (! array_key_exists($key, $this->values)) {
-            $this->values[$key] = 0.0;
-            $this->labelValues[$key] = $labelValues;
-        }
+        $this->store->add(SampleKey::encode($this->name, self::KIND, $labelValues), 0.0);
     }
 
     /**
      * @param string[] $labelValues
      */
     public function increment(array $labelValues): void {
-        $key = PrometheusText::key($labelValues);
-
-        $this->values[$key] = ($this->values[$key] ?? 0.0) + 1.0;
-        $this->labelValues[$key] = $labelValues;
+        $this->store->add(SampleKey::encode($this->name, self::KIND, $labelValues), 1.0);
     }
 
-    public function render(): string {
+    /**
+     * @param array<string, float> $samples
+     */
+    public function render(array $samples): string {
         $lines = [
-            "# HELP {$this->name} {$this->help}",
+            "# HELP {$this->name} " . PrometheusText::help($this->help),
             "# TYPE {$this->name} counter",
         ];
 
-        $keys = array_keys($this->values);
-        sort($keys);
+        $mine = [];
 
-        foreach ($keys as $key) {
-            $labels = PrometheusText::labels($this->labelNames, $this->labelValues[$key]);
-            $lines[] = $this->name . $labels . " " . PrometheusText::value($this->values[$key]);
+        foreach ($samples as $key => $value) {
+            $sample = SampleKey::decode((string) $key, $this->name);
+
+            if ($sample !== null) {
+                $mine[(string) $key] = $sample["labels"];
+            }
+        }
+
+        ksort($mine);
+
+        foreach ($mine as $key => $labelValues) {
+            $labels = PrometheusText::labels($this->labelNames, $labelValues);
+            $lines[] = $this->name . $labels . " " . PrometheusText::value($samples[$key]);
         }
 
         return implode("\n", $lines) . "\n";

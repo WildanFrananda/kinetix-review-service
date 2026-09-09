@@ -84,9 +84,14 @@ COPY --from=vendor /app /app
 # every single time. Created here rather than left to the framework because that write happens
 # before any code that would make the directory.
 #
+# storage/framework/metrics is the third of them and holds the one file every FrankenPHP worker
+# in this container adds its counts to — see App\Observability\FileMetricStore. Same reason: the
+# first write happens before any code that would make the directory, and a worker that cannot
+# write it drops the counts and says so on /metrics rather than reporting quiet zeroes.
+#
 # Prove the install actually arrived. `artisan --version` is not used: it boots the framework
 # and would demand the very credentials this image must not contain.
-RUN mkdir -p storage/logs storage/framework/cache/data \
+RUN mkdir -p storage/logs storage/framework/cache/data storage/framework/metrics \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php \
     && test -f public/frankenphp-worker.php \
@@ -112,15 +117,22 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
 # that lives forever turns any future slow leak into an outage rather than a blip.
 #
 # artisan is PID 1 on purpose, so that docker's SIGTERM reaches the process that owns the server.
-# What it does with that signal is App\Console\OctaneDrain, installed from AppServiceProvider.
+# Octane's own handler stops the server and exits; App\Console\OctaneServerExitWait, installed
+# from AppServiceProvider, holds PID 1 open until the FrankenPHP child has actually gone, so the
+# container is not torn down mid-shutdown. What finishes in-flight requests is Caddy's
+# grace_period, set in config/octane.php — not that hook.
 # A shell wrapper that trapped the signal instead was tried and dropped: it needs a second
 # process and a wait loop to do what a shutdown function does in one hook.
 #
-# --log-level is load-bearing for the logs, not for their verbosity. WARN is already Octane's
-# value outside a local environment, so Caddy logs exactly what it logged before; what the flag
-# changes is StartFrankenPhpCommand::writeServerOutput(), which forwards the server's stderr
-# verbatim when it is set and otherwise json_decodes every line looking for Caddy's own `msg`
-# key — printing "unknown error" in place of each of this application's JSON log lines.
+# --log-level is load-bearing for the logs, not for their verbosity. What it changes is
+# StartFrankenPhpCommand::writeServerOutput(), which forwards the server's stderr verbatim when
+# the flag is set and otherwise json_decodes every line looking for Caddy's own `msg` key —
+# printing "unknown error" in place of each of this application's JSON log lines.
+#
+# It does move Caddy's own verbosity, and in the lab it moves it DOWN. StartFrankenPhpCommand
+# computes CADDY_SERVER_LOG_LEVEL as --log-level ?: (local ? INFO : WARN), and compose sets
+# APP_ENV=local for this service, so WARN here is quieter than the INFO it would otherwise get.
+# Outside a local environment WARN is what it was already.
 CMD ["php", "artisan", "octane:start", \
      "--server=frankenphp", \
      "--host=0.0.0.0", \

@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Clients\GrpcOrderClient;
-use App\Console\OctaneDrain;
+use App\Console\OctaneServerExitWait;
 use App\Contracts\Clients\OrderClientInterface;
+use App\Contracts\Observability\MetricStoreInterface;
 use App\Contracts\Repositories\DriverRatingRepositoryInterface;
 use App\Contracts\Repositories\ProductReviewRepositoryInterface;
+use App\Observability\FileMetricStore;
 use App\Observability\MetricsRegistry;
 use App\Repositories\EloquentDriverRatingRepository;
 use App\Repositories\EloquentProductReviewRepository;
 use App\Security\TokenVerifier;
 use GuzzleHttp\Client;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -22,8 +25,15 @@ class AppServiceProvider extends ServiceProvider {
         $this->app->bind(ProductReviewRepositoryInterface::class, EloquentProductReviewRepository::class);
         $this->app->bind(DriverRatingRepositoryInterface::class, EloquentDriverRatingRepository::class);
         $this->app->singleton(OrderClientInterface::class, GrpcOrderClient::class);
-        $this->app->singleton(MetricsRegistry::class, static function (): MetricsRegistry {
-            return new MetricsRegistry((string) config("app.version"));
+        $this->app->singleton(MetricStoreInterface::class, static function (): MetricStoreInterface {
+            return new FileMetricStore((string) config("metrics.store_file"));
+        });
+
+        $this->app->singleton(MetricsRegistry::class, static function (Application $app): MetricsRegistry {
+            return new MetricsRegistry(
+                (string) config("app.version"),
+                $app->make(MetricStoreInterface::class)
+            );
         });
 
         $this->app->singleton(TokenVerifier::class, static function (): TokenVerifier {
@@ -46,8 +56,8 @@ class AppServiceProvider extends ServiceProvider {
     }
 
     public function boot(): void {
-        if ($this->app->runningInConsole() && OctaneDrain::shouldInstall($_SERVER["argv"] ?? [])) {
-            OctaneDrain::install();
+        if ($this->app->runningInConsole() && OctaneServerExitWait::shouldInstall($_SERVER["argv"] ?? [])) {
+            OctaneServerExitWait::install();
         }
     }
 }

@@ -28,6 +28,10 @@ final class PrometheusText {
         return str_replace(["\\", "\n", "\""], ["\\\\", "\\n", "\\\""], $value);
     }
 
+    public static function help(string $help): string {
+        return str_replace(["\\", "\n"], ["\\\\", "\\n"], $help);
+    }
+
     public static function value(float $value): string {
         if (is_nan($value)) {
             return "NaN";

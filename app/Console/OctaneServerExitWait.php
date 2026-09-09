@@ -5,35 +5,49 @@ declare(strict_types=1);
 namespace App\Console;
 
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
-final class OctaneDrain {
+final class OctaneServerExitWait {
     private const GRACE_SECONDS = 25.0;
 
     private const POLL_MICROSECONDS = 50_000;
 
     public const COMMAND = "octane:start";
 
+    /**
+     * @param array<int|string, mixed> $argv
+     */
     public static function shouldInstall(array $argv): bool {
         return in_array(self::COMMAND, $argv, true);
     }
 
     public static function install(): void {
         if (! function_exists("pcntl_waitpid")) {
+            Log::warning("pcntl is not loaded, so nothing will hold this process open while the "
+                . "server exits. On SIGTERM the container may go before the server has stopped."
+            );
+
             return;
         }
 
         register_shutdown_function(static function (): void {
-            self::drain();
+            self::wait();
         });
     }
 
-    private static function drain(): void {
+    private static function wait(): void {
         try {
-            if (self::reap() !== 0) {
+            $reaped = self::reap();
+
+            if ($reaped !== 0) {
+                Log::info("the artisan process is exiting; the server process was already gone", [
+                    "waitpid" => $reaped,
+                ]);
+
                 return;
             }
 
-            Log::info("stopping: waiting for the server process to exit", [
+            Log::info("the artisan process is exiting; waiting for the server process", [
                 "grace_seconds" => self::GRACE_SECONDS,
             ]);
 
@@ -48,8 +62,9 @@ final class OctaneDrain {
             Log::error("the server process was still running when the wait window closed; it is "
                 . "about to be killed, and anything it was still serving with it", [
                     "grace_seconds" => self::GRACE_SECONDS,
-                ]);
-        } catch (\Throwable $exception) {
+                ]
+            );
+        } catch (Throwable $exception) {
             Log::error("the shutdown wait itself failed; the server is being stopped without it", [
                 "exception" => $exception::class,
                 "message" => $exception->getMessage(),

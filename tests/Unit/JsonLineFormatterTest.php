@@ -137,3 +137,39 @@ it("keeps a stack trace short enough that the line survives Octane's pipe, and s
     expect($decoded["exception"]["trace_frames_omitted"])->toBeGreaterThan(0);
     expect(strlen($line))->toBeLessThan(16384);
 });
+
+it("keeps one line one object when the large thing is the context and not the trace", function () {
+    $line = (new JsonLineFormatter)->format(logRecord([
+        "request_id" => "kinetix-trace-1757458800-99",
+        "payload" => str_repeat("a", 200_000),
+    ]));
+
+    expect(substr_count($line, "\n"))->toBe(1);
+    expect(strlen($line))->toBeLessThan(16384);
+
+    $decoded = json_decode(trim($line), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($decoded["request_id"])->toBe("kinetix-trace-1757458800-99");
+    expect($decoded["message"])->toBe("review saved");
+    expect($decoded["truncated"])->toBeTrue();
+    expect($decoded["original_line_bytes"])->toBeGreaterThan(JsonLineFormatter::MAX_LINE_BYTES);
+});
+
+it("holds the cap even when every unbounded field at once is enormous", function () {
+    $line = (new JsonLineFormatter)->format(logRecord(
+        [
+            "request_id" => str_repeat("\u{1f600}", 20_000),
+            "payload" => str_repeat("\"\\\n", 40_000),
+        ],
+        Level::Error,
+        str_repeat("\u{00e9}", 60_000)
+    ));
+
+    expect(substr_count($line, "\n"))->toBe(1);
+    expect(strlen($line))->toBeLessThanOrEqual(JsonLineFormatter::MAX_LINE_BYTES + 1);
+
+    $decoded = json_decode(trim($line), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($decoded["truncated"])->toBeTrue();
+    expect($decoded["level"])->toBe("ERROR");
+});

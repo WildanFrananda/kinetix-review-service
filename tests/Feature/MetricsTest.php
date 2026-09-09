@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 use App\Contracts\Clients\OrderClientInterface;
+use App\Contracts\Observability\MetricStoreInterface;
 use App\Observability\MetricsRegistry;
 use Illuminate\Support\Facades\Route;
-use Tests\ExplodingMetricsRegistry;
+use Tests\ExplodingMetricStore;
 use Tests\FakeOrderClient;
 use Tests\MetricsGate;
 
@@ -76,7 +77,7 @@ it("names the service only on build_info, never on the series a scrape target al
 });
 
 it("answers a registry it cannot render with a failed scrape, not with zeroes", function () {
-    $this->app->instance(MetricsRegistry::class, new ExplodingMetricsRegistry);
+    $this->app->instance(MetricStoreInterface::class, new ExplodingMetricStore);
 
     $response = $this->get("/api/metrics");
 
