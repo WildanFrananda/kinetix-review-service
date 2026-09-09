@@ -29,6 +29,11 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- The container logs JSON to stdout; a test run must not, or a handler's stack trace
+             buries the failure that produced it. The json channel is still built and asserted -
+             tests/Feature/JsonLoggingTest.php checks the wiring, tests/Unit/JsonLineFormatter
+             Test.php the line it writes - this only stops it being the sink for the suite. -->
+        <env name="LOG_CHANNEL" value="single"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

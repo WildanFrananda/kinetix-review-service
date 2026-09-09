@@ -76,9 +76,18 @@ WORKDIR /app
 
 COPY --from=vendor /app /app
 
+# The writable directories Laravel expects. They are NOT copied in: .dockerignore excludes
+# storage/logs/ and storage/framework/cache/ so a host log file never reaches a distributable
+# layer, and git does not track empty directories either, so nothing recreates them. Without
+# storage/logs the container did not start at all — `octane:start` writes its server state file
+# there before it starts anything, and died on "Unable to write to process ID file", exit 1,
+# every single time. Created here rather than left to the framework because that write happens
+# before any code that would make the directory.
+#
 # Prove the install actually arrived. `artisan --version` is not used: it boots the framework
 # and would demand the very credentials this image must not contain.
-RUN test -f vendor/autoload.php \
+RUN mkdir -p storage/logs storage/framework/cache/data \
+    && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php \
     && test -f public/frankenphp-worker.php \
     && php -r 'require "vendor/autoload.php"; exit(class_exists("Laravel\\Octane\\OctaneServiceProvider") ? 0 : 1);'
@@ -101,8 +110,20 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
 
 # --max-requests recycles a worker after 500 requests. Review has no known leak, but a worker
 # that lives forever turns any future slow leak into an outage rather than a blip.
+#
+# artisan is PID 1 on purpose, so that docker's SIGTERM reaches the process that owns the server.
+# What it does with that signal is App\Console\OctaneDrain, installed from AppServiceProvider.
+# A shell wrapper that trapped the signal instead was tried and dropped: it needs a second
+# process and a wait loop to do what a shutdown function does in one hook.
+#
+# --log-level is load-bearing for the logs, not for their verbosity. WARN is already Octane's
+# value outside a local environment, so Caddy logs exactly what it logged before; what the flag
+# changes is StartFrankenPhpCommand::writeServerOutput(), which forwards the server's stderr
+# verbatim when it is set and otherwise json_decodes every line looking for Caddy's own `msg`
+# key — printing "unknown error" in place of each of this application's JSON log lines.
 CMD ["php", "artisan", "octane:start", \
      "--server=frankenphp", \
      "--host=0.0.0.0", \
      "--port=8002", \
-     "--max-requests=500"]
+     "--max-requests=500", \
+     "--log-level=WARN"]

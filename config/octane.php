@@ -137,19 +137,8 @@ return [
     'warm' => [
         ...Octane::defaultServicesToWarm(),
 
-        // The gRPC order client, kept between requests on purpose.
-        //
-        // Binding it as a singleton in AppServiceProvider is not enough: Octane rebuilds the
-        // container for every request, so a singleton lives exactly one request and each call
-        // still paid a fresh TCP and HTTP/2 handshake to order-service. Verified by
-        // spl_object_id changing on every request while the worker PID stayed the same.
-        //
-        // Warming it is what actually reuses the channel, which is most of the reason for
-        // running a worker at all. It now also carries state that MUST survive the request:
-        // GrpcOrderClient holds a CircuitBreaker whose failure count and open window are only
-        // meaningful accumulated across requests. Un-warm this binding and the breaker is
-        // rebuilt fresh every request, which silently reduces it to decoration.
         App\Contracts\Clients\OrderClientInterface::class,
+        App\Observability\MetricsRegistry::class,
     ],
 
     'flush' => [
@@ -251,5 +240,32 @@ return [
     */
 
     'state_file' => env('OCTANE_STATE_FILE', storage_path('logs/octane-server-state.json')),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Caddy Environment
+    |--------------------------------------------------------------------------
+    |
+    | Spread last into the FrankenPHP process environment by StartFrankenPhpCommand, so anything
+    | here overrides Octane's own value for the same variable.
+    |
+    | CADDY_GLOBAL_OPTIONS is Octane's 'auto_https disable_redirects' plus one line. Without an
+    | explicit grace_period, Caddy shuts its HTTP servers down with a context that has no
+    | deadline: a request that never finishes holds the process open past compose's 30s
+    | stop_grace_period and the container is killed rather than stopped. This is the innermost of
+    | three numbers — Caddy waits 20s, App\Console\OctaneDrain waits 25s for Caddy, and compose
+    | gives the container 30s — and it is the answer to "what happens to work that outlives the
+    | drain": Caddy closes the connection under it.
+    |
+    | The literal tab matters: the Caddyfile stub expands this inside the global options block,
+    | one directive per line.
+    |
+    */
+
+    'caddy' => [
+        'env' => [
+            'CADDY_GLOBAL_OPTIONS' => "auto_https disable_redirects\n\tgrace_period 20s",
+        ],
+    ],
 
 ];

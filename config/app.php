@@ -19,6 +19,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Version
+    |--------------------------------------------------------------------------
+    |
+    | Published as the `version` label on kinetix_build_info, and nowhere else. Keep it short —
+    | a release tag or a short sha. A full 40-character commit sha in a metric label is what
+    | kinetix-infrastructure/scripts/metrics_conformance.sh looks for when it hunts identifiers
+    | that escaped into label values, and it cannot tell one from an order id.
+    |
+    */
+
+    'version' => env('APP_VERSION', '0.0.0-dev'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

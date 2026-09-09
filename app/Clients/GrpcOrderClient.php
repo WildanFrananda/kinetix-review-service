@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Clients;
 
 use App\Contracts\Clients\OrderClientInterface;
+use App\Observability\MetricsRegistry;
 use App\Observability\RequestId;
 use App\Resilience\CircuitBreaker;
 use App\Security\ServiceIdentity;
@@ -18,6 +19,8 @@ final class GrpcOrderClient implements OrderClientInterface {
 
     private const STATUS_OK = 0;
 
+    private const STATUS_UNKNOWN = 2;
+
     private const STATUS_INVALID_ARGUMENT = 3;
 
     private const STATUS_NOT_FOUND = 5;
@@ -26,7 +29,11 @@ final class GrpcOrderClient implements OrderClientInterface {
 
     private readonly CircuitBreaker $breaker;
 
-    public function __construct(string $hostname = "", ?ChannelCredentials $credentials = null) {
+    public function __construct(
+        private readonly MetricsRegistry $metrics,
+        string $hostname = "",
+        ?ChannelCredentials $credentials = null
+    ) {
         if ($hostname === "") {
             $hostname = config("services.order_service.grpc_url", "kinetix-order-service:50055");
         }
@@ -40,6 +47,8 @@ final class GrpcOrderClient implements OrderClientInterface {
 
     public function getOrderDetails(string $orderId): ?array {
         if (! $this->breaker->allows()) {
+            $this->metrics->recordGrpcClientShortCircuit(MetricsRegistry::ORDER_PEER);
+
             throw OrderServiceUnavailableException::breakerOpen($this->breaker->retryAfterSeconds());
         }
 
@@ -58,7 +67,19 @@ final class GrpcOrderClient implements OrderClientInterface {
             $answered = self::isAnswerAboutTheOrder($status->code);
             $code = $status->code;
             $details = $status->details ?? "";
+
+            $this->metrics->recordGrpcClientCall(
+                MetricsRegistry::ORDER_PEER,
+                MetricsRegistry::ORDER_METHOD,
+                $code
+            );
         } catch (\Throwable $ex) {
+            $this->metrics->recordGrpcClientCall(
+                MetricsRegistry::ORDER_PEER,
+                MetricsRegistry::ORDER_METHOD,
+                self::STATUS_UNKNOWN
+            );
+
             $this->breaker->recordFailure();
 
             Log::warning("order-service GetOrderDetails threw before answering", [
