@@ -33,9 +33,14 @@ return [
     | is a backstop, not a licence — a value that needs cutting is published by its first sixteen
     | characters, so set something short and the label says the whole of it.
     |
+    | The fallback is the version this repository declares for itself, the way every other
+    | service in the estate reports what its own manifest declares. It is deliberately not
+    | '0.0.0-dev': a placeholder satisfies a check that the label is present and still tells the
+    | fleet panel nothing, which is the failure metrics_conformance.sh now rejects by name.
+    |
     */
 
-    'version' => env('APP_VERSION', '0.0.0-dev'),
+    'version' => env('APP_VERSION', '0.1.0'),
 
     /*
     |--------------------------------------------------------------------------
