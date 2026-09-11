@@ -8,7 +8,8 @@ use Tests\MetricsGate;
 it("leaves a version that is already a version alone", function (string $version) {
     expect(VersionLabel::of($version))->toBe($version);
 })->with([
-    "the shipped default" => "0.0.0-dev",
+    "the shipped default" => "0.1.0",
+    "a pre-release suffix" => "0.1.0-rc.2",
     "a release tag" => "v1.4.2",
     "a tag and a short sha" => "v1.4.2-9f2c1a4",
     "a date build" => "2026.09.09-14",

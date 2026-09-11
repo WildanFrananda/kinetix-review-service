@@ -23,15 +23,19 @@ return [
     |--------------------------------------------------------------------------
     |
     | Published as the `version` label on kinetix_build_info, and nowhere else. Keep it short —
-    | a release tag or a short sha. A full 40-character commit sha in a metric label is what
-    | kinetix-infrastructure/scripts/metrics_conformance.sh looks for when it hunts identifiers
-    | that escaped into label values, and it cannot tell one from an order id.
+    | a release tag or a short sha.
     |
-    | Whatever is set here is narrowed by App\Observability\VersionLabel before it becomes a
-    | label: characters outside [A-Za-z0-9._+-] are dropped and the result is cut to sixteen, so a
-    | sha, a uuid or an address in this variable cannot fail the gate for the whole service. That
-    | is a backstop, not a licence — a value that needs cutting is published by its first sixteen
-    | characters, so set something short and the label says the whole of it.
+    | kinetix-infrastructure/scripts/metrics_conformance.sh hunts identifiers that escaped into
+    | label values, and it spares exactly this label on exactly this metric: a build id is bounded
+    | by how often you deploy, not by how often you are called, so a full commit sha here is
+    | correct rather than a leak. An earlier version of this comment said the gate could not tell
+    | a sha from an order id; it can now, and nothing here depends on it failing to.
+    |
+    | Whatever is set here is still narrowed by App\Observability\VersionLabel before it becomes
+    | a label: characters outside [A-Za-z0-9._+-] are dropped and the result is cut to sixteen.
+    | That is for the person reading the fleet panel, and against a value that is not a build id at
+    | all landing in a label — not for the gate. A value that needs cutting is published by its
+    | first sixteen characters, so set something short and the label says the whole of it.
     |
     | The fallback is the version this repository declares for itself, the way every other
     | service in the estate reports what its own manifest declares. It is deliberately not
