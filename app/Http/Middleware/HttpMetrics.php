@@ -32,7 +32,7 @@ final class HttpMetrics {
     private static function routeLabel(Request $request): string {
         $route = $request->route();
 
-        if (! $route instanceof Route) {
+        if (!$route instanceof Route) {
             return MetricsRegistry::UNMATCHED_ROUTE;
         }
 

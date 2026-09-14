@@ -22,7 +22,7 @@ final class OctaneServerExitWait {
     }
 
     public static function install(): void {
-        if (! function_exists("pcntl_waitpid")) {
+        if (!function_exists("pcntl_waitpid")) {
             Log::warning("pcntl is not loaded, so nothing will hold this process open while the "
                 . "server exits. On SIGTERM the container may go before the server has stopped."
             );

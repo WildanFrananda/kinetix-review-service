@@ -11,6 +11,7 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use RuntimeException;
 
 final class AuthenticateIdentityToken {
     public const ATTRIBUTE = "caller";
@@ -38,8 +39,8 @@ final class AuthenticateIdentityToken {
 
     public static function caller(Request $request): AccessClaims {
         $claims = $request->attributes->get(self::ATTRIBUTE);
-        if (! $claims instanceof AccessClaims) {
-            throw new \RuntimeException("the caller was read before authentication ran");
+        if (!$claims instanceof AccessClaims) {
+            throw new RuntimeException("the caller was read before authentication ran");
         }
 
         return $claims;

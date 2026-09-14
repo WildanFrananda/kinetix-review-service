@@ -43,7 +43,7 @@ final class TokenVerifier {
             throw new InvalidTokenException("the token could not be verified");
         }
 
-        if (! $this->audienceMatches($payload["aud"] ?? null)) {
+        if (!$this->audienceMatches($payload["aud"] ?? null)) {
             throw new InvalidTokenException("the token could not be verified");
         }
 

@@ -13,6 +13,10 @@ use Grpc\ChannelCredentials;
 use Illuminate\Support\Facades\Log;
 use Order\V1\GetOrderDetailsRequest;
 use Order\V1\GetOrderDetailsResponse;
+use Order\V1\OrderServiceClient;
+use Common\V1\OrderStatus;
+use Common\V1\Money;
+use Throwable;
 
 final class GrpcOrderClient implements OrderClientInterface {
     private const TIMEOUT_MICROSECONDS = 5_000_000;
@@ -25,7 +29,7 @@ final class GrpcOrderClient implements OrderClientInterface {
 
     private const STATUS_NOT_FOUND = 5;
 
-    private readonly \Order\V1\OrderServiceClient $stub;
+    private readonly OrderServiceClient $stub;
 
     private readonly CircuitBreaker $breaker;
 
@@ -38,7 +42,7 @@ final class GrpcOrderClient implements OrderClientInterface {
             $hostname = config("services.order_service.grpc_url", "kinetix-order-service:50055");
         }
 
-        $this->stub = new \Order\V1\OrderServiceClient($hostname, [
+        $this->stub = new OrderServiceClient($hostname, [
             "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
         ]);
 
@@ -73,7 +77,7 @@ final class GrpcOrderClient implements OrderClientInterface {
                 MetricsRegistry::ORDER_METHOD,
                 $code
             );
-        } catch (\Throwable $ex) {
+        } catch (Throwable $ex) {
             $this->metrics->recordGrpcClientCall(
                 MetricsRegistry::ORDER_PEER,
                 MetricsRegistry::ORDER_METHOD,
@@ -93,7 +97,7 @@ final class GrpcOrderClient implements OrderClientInterface {
             throw OrderServiceUnavailableException::transport();
         }
 
-        if (! $answered) {
+        if (!$answered) {
             $this->breaker->recordFailure();
 
             Log::warning("order-service GetOrderDetails did not answer about the order", [
@@ -128,7 +132,7 @@ final class GrpcOrderClient implements OrderClientInterface {
             "order_id" => $response->getOrderId(),
             "order_number" => $response->getOrderNumber(),
             "customer_principal_id" => $response->getCustomerPrincipalId(),
-            "status" => \Common\V1\OrderStatus::name($response->getStatus()),
+            "status" => OrderStatus::name($response->getStatus()),
             "subtotal" => self::major($response->getSubtotal()),
             "discount_amount" => self::major($response->getDiscountAmount()),
             "final_total" => self::major($response->getFinalTotal()),
@@ -142,7 +146,7 @@ final class GrpcOrderClient implements OrderClientInterface {
             || $code === self::STATUS_INVALID_ARGUMENT;
     }
 
-    private static function major(?\Common\V1\Money $money): string {
+    private static function major(?Money $money): string {
         return $money === null ? "0.00" : number_format($money->getAmountMinor() / 100, 2, ".", "");
     }
 }
