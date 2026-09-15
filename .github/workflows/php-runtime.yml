@@ -72,6 +72,17 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
           provenance: false
 
+      # The whole point of this image is the extension set, and an image that builds but cannot load
+      # its extensions is worse than a failed build, because it ships. The runner is native to the
+      # architecture it just built, so this runs the real thing rather than emulating it.
+      - name: The extensions must load on ${{ matrix.platform }}
+        run: |
+          docker run --rm "$IMAGE:$TAG-${{ matrix.suffix }}" php -r '
+            exit(extension_loaded("grpc")
+              && extension_loaded("protobuf")
+              && extension_loaded("pdo_pgsql")
+              && extension_loaded("pcntl") ? 0 : 1);'
+
   manifest:
     needs: build
     runs-on: ubuntu-latest

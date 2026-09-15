@@ -65,10 +65,14 @@ RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
     && test -f bootstrap/cache/packages.php
 
 # The PHP runtime — FrankenPHP plus grpc, protobuf, pdo_pgsql and pcntl — is built by
-# docker/php-runtime.Dockerfile and published by the php-runtime CI job. Pinned by digest:
+# docker/php-runtime.Dockerfile and published by .github/workflows/php-runtime.yml. Pinned by digest:
 # a tag is a moving pointer, and the extension set is exactly the thing that must not move
 # under a service without somebody deciding it should.
-FROM registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime@sha256:883de4f70a224a6264066cbe4ca22793fae80044dcbd46f0e1d355116f0ff730 AS final
+#
+# This digest is a manifest list covering linux/amd64 and linux/arm64. The GitLab image it replaces
+# was built by hand on a MacBook and so carried arm64 alone, which is why every CI build here died on
+# "no match for platform in manifest" while the same build worked on the laptop.
+FROM ghcr.io/wildanfrananda/kinetix-review-php-runtime@sha256:6fa0dfc7d80a06b09d63761ba636d11728ba530f33beebe39035d6ffdfd6a97f AS final
 
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
 

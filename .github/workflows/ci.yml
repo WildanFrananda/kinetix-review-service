@@ -4,10 +4,13 @@ name: CI
 # `origin` is GitHub and GitLab is a mirror. Both assert the same things and must be changed
 # together; if they drift, the two platforms disagree about whether the same commit is good.
 #
-# The php-runtime image is published from GitLab only. Its registry is the one whose credentials
-# exist without creating a new token — GitLab hands every job a CI_JOB_TOKEN scoped to its own
-# project registry. This workflow consumes the published image rather than rebuilding it, so a
-# 29-52 minute extension compile does not run twice on two platforms for the same commit.
+# The php-runtime image is published by .github/workflows/php-runtime.yml, to GHCR, for both
+# architectures. It used to come from the GitLab registry, built by hand — one architecture, the
+# builder's — and this job failed on every run with "no matching manifest for linux/amd64".
+#
+# Consumed here, never rebuilt: a 29-52 minute extension compile must not run again per commit.
+# Pinned by tag rather than digest because a container image reference here is resolved once per
+# run and a wrong one fails loudly; the *service* image pins the digest, which is what ships.
 
 on:
   pull_request:
@@ -18,7 +21,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime:php8.5-grpc1
+      image: ghcr.io/wildanfrananda/kinetix-review-php-runtime:php8.5-grpc1
     steps:
       - uses: actions/checkout@v6
       - name: Install dependencies
