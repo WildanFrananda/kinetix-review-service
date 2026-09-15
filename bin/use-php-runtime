@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Points the service Dockerfile at a published php-runtime image, by digest.
 #
-#   bin/use-php-runtime registry.gitlab.com/.../php-runtime@sha256:<digest>
+#   bin/use-php-runtime ghcr.io/.../kinetix-review-php-runtime@sha256:<digest>
 #   bin/use-php-runtime                       # resolves the digest from the local daemon
 #
 # Two things happen: the FROM line is rewritten, and the extension-building layers — now the
@@ -12,7 +12,11 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TAG="registry.gitlab.com/wildanfrananda/kinetix-review-service/php-runtime:php8.5-grpc1"
+# GHCR, not the GitLab registry this used to name. The GitLab copy was built by hand on a MacBook and
+# was therefore arm64 only, so every amd64 runner pulling it died on "no matching manifest for
+# linux/amd64". .github/workflows/php-runtime.yml now builds both architectures on native runners and
+# joins them into one manifest list.
+TAG="ghcr.io/wildanfrananda/kinetix-review-php-runtime:php8.5-grpc1"
 DOCKERFILE="$HERE/Dockerfile"
 
 ref="${1:-}"
@@ -22,12 +26,12 @@ if [ -z "$ref" ]; then
     echo "No digest for $TAG."
     echo
     echo "The image has to be pushed before it has one — a locally built image carries none."
-    echo "Either let the php-runtime CI job publish it, or push it yourself:"
+    echo "Run the php-runtime workflow and use the digest it prints — do not push from a laptop:"
     echo
-    echo "    docker login registry.gitlab.com"
-    echo "    docker push $TAG"
+    echo "    Actions -> 'PHP runtime base image' -> Run workflow"
     echo
-    echo "then re-run this script."
+    echo "A hand-built push carries only this machine's architecture, which is how the amd64 runners"
+    echo "came to fail on an image that worked locally."
     exit 1
   fi
 fi
