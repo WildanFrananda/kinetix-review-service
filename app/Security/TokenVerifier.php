@@ -8,8 +8,8 @@ use Firebase\JWT\CachedKeySet;
 use Firebase\JWT\JWT;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
-use Psr\Http\Client\ClientInterface;
 use Illuminate\Support\Facades\Cache;
+use Psr\Http\Client\ClientInterface;
 use Symfony\Component\Cache\Adapter\Psr16Adapter;
 use Throwable;
 
@@ -24,8 +24,8 @@ final class TokenVerifier {
     ) {
         $this->keys = new CachedKeySet(
             $jwksUri,
-            $http ?? new Client(),
-            new HttpFactory(),
+            $http ?? new Client,
+            new HttpFactory,
             new Psr16Adapter(Cache::store()),
             300,
             true
@@ -43,7 +43,7 @@ final class TokenVerifier {
             throw new InvalidTokenException("the token could not be verified");
         }
 
-        if (!$this->audienceMatches($payload["aud"] ?? null)) {
+        if (! $this->audienceMatches($payload["aud"] ?? null)) {
             throw new InvalidTokenException("the token could not be verified");
         }
 

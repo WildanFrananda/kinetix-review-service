@@ -20,7 +20,7 @@ class ProductReviewService {
         $customerPrincipalId = $caller->principalId;
 
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
-        if (!$order) {
+        if (! $order) {
             throw new InvalidArgumentException("Order not found.");
         }
 
@@ -43,7 +43,7 @@ class ProductReviewService {
             }
         }
 
-        if (!$purchasedProduct) {
+        if (! $purchasedProduct) {
             throw new InvalidArgumentException("Product was not purchased in this order.");
         }
 

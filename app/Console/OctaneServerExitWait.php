@@ -15,14 +15,14 @@ final class OctaneServerExitWait {
     public const COMMAND = "octane:start";
 
     /**
-     * @param array<int|string, mixed> $argv
+     * @param  array<int|string, mixed>  $argv
      */
     public static function shouldInstall(array $argv): bool {
         return in_array(self::COMMAND, $argv, true);
     }
 
     public static function install(): void {
-        if (!function_exists("pcntl_waitpid")) {
+        if (! function_exists("pcntl_waitpid")) {
             Log::warning("pcntl is not loaded, so nothing will hold this process open while the "
                 . "server exits. On SIGTERM the container may go before the server has stopped."
             );

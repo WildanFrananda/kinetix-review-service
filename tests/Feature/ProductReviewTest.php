@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Contracts\Clients\OrderClientInterface;
 use App\Security\TokenVerifier;
+use Firebase\JWT\JWT;
 use Tests\FakeOrderClient;
 use Tests\IdentityTokens;
 
@@ -50,7 +51,7 @@ it("refuses a request carrying only an X-User-Id header", function () {
 
 it("refuses a token signed by a key identity did not publish", function () {
     $forged = openssl_pkey_new(["private_key_bits" => 2048, "private_key_type" => OPENSSL_KEYTYPE_RSA]);
-    $token = Firebase\JWT\JWT::encode([
+    $token = JWT::encode([
         "sub" => "11111111-2222-3333-4444-555555555555",
         "uid" => 1001,
         "email" => "customer@kinetix.test",

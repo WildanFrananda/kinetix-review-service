@@ -10,7 +10,7 @@ final class CounterFamily {
     private const KIND = "";
 
     /**
-     * @param string[] $labelNames
+     * @param  string[]  $labelNames
      */
     public function __construct(
         private readonly MetricStoreInterface $store,
@@ -20,21 +20,21 @@ final class CounterFamily {
     ) {}
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public function initialise(array $labelValues): void {
         $this->store->add(SampleKey::encode($this->name, self::KIND, $labelValues), 0.0);
     }
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public function increment(array $labelValues): void {
         $this->store->add(SampleKey::encode($this->name, self::KIND, $labelValues), 1.0);
     }
 
     /**
-     * @param array<string, float> $samples
+     * @param  array<string, float>  $samples
      */
     public function render(array $samples): string {
         $lines = [

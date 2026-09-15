@@ -8,7 +8,7 @@ final class SampleKey {
     private const SEPARATOR = "\x1f";
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public static function encode(string $name, string $kind, array $labelValues): string {
         $parts = [$name, $kind];

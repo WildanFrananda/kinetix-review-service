@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\AuthenticateIdentityToken;
 use App\Services\DriverRatingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Http\Middleware\AuthenticateIdentityToken;
 use InvalidArgumentException;
 
 class DriverRatingController extends Controller {

@@ -23,7 +23,7 @@ final class AccessClaims {
 
     private static function text(array $payload, string $name): string {
         $value = $payload[$name] ?? null;
-        if (!is_string($value) || $value === "") {
+        if (! is_string($value) || $value === "") {
             throw new InvalidArgumentException("claim '{$name}' is missing or not a string");
         }
 

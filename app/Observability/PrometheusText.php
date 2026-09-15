@@ -8,8 +8,8 @@ final class PrometheusText {
     public const CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8";
 
     /**
-     * @param string[] $names
-     * @param string[] $values
+     * @param  string[]  $names
+     * @param  string[]  $values
      */
     public static function labels(array $names, array $values): string {
         if ($names === []) {
@@ -51,7 +51,7 @@ final class PrometheusText {
     }
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public static function key(array $labelValues): string {
         return implode("\x1f", $labelValues);

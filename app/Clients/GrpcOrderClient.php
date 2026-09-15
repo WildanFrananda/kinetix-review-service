@@ -9,13 +9,13 @@ use App\Observability\MetricsRegistry;
 use App\Observability\RequestId;
 use App\Resilience\CircuitBreaker;
 use App\Security\ServiceIdentity;
+use Common\V1\Money;
+use Common\V1\OrderStatus;
 use Grpc\ChannelCredentials;
 use Illuminate\Support\Facades\Log;
 use Order\V1\GetOrderDetailsRequest;
 use Order\V1\GetOrderDetailsResponse;
 use Order\V1\OrderServiceClient;
-use Common\V1\OrderStatus;
-use Common\V1\Money;
 use Throwable;
 
 final class GrpcOrderClient implements OrderClientInterface {
@@ -57,7 +57,7 @@ final class GrpcOrderClient implements OrderClientInterface {
         }
 
         try {
-            $request = new GetOrderDetailsRequest();
+            $request = new GetOrderDetailsRequest;
             $request->setOrderId($orderId);
 
             /** @var array{0: ?GetOrderDetailsResponse, 1: \stdClass} $call */
@@ -97,7 +97,7 @@ final class GrpcOrderClient implements OrderClientInterface {
             throw OrderServiceUnavailableException::transport();
         }
 
-        if (!$answered) {
+        if (! $answered) {
             $this->breaker->recordFailure();
 
             Log::warning("order-service GetOrderDetails did not answer about the order", [

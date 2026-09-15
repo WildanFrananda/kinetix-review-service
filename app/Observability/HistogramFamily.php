@@ -12,8 +12,8 @@ final class HistogramFamily {
     private const COUNT = "count";
 
     /**
-     * @param string[] $labelNames
-     * @param float[] $buckets upper bounds in ascending order; +Inf is implied and never listed
+     * @param  string[]  $labelNames
+     * @param  float[]  $buckets  upper bounds in ascending order; +Inf is implied and never listed
      */
     public function __construct(
         private readonly MetricStoreInterface $store,
@@ -24,7 +24,7 @@ final class HistogramFamily {
     ) {}
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public function initialise(array $labelValues): void {
         foreach (array_keys($this->buckets) as $index) {
@@ -36,7 +36,7 @@ final class HistogramFamily {
     }
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public function observe(float $value, array $labelValues): void {
         $this->initialise($labelValues);
@@ -54,7 +54,7 @@ final class HistogramFamily {
     }
 
     /**
-     * @param array<string, float> $samples
+     * @param  array<string, float>  $samples
      */
     public function render(array $samples): string {
         $lines = [
@@ -105,7 +105,7 @@ final class HistogramFamily {
     }
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     private function key(string $kind, array $labelValues): string {
         return SampleKey::encode($this->name, $kind, $labelValues);

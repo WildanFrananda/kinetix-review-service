@@ -1,5 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
+use App\Contracts\Clients\OrderClientInterface;
+use App\Contracts\Observability\MetricStoreInterface;
+use App\Observability\MetricsRegistry;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Events\RequestHandled;
 use Laravel\Octane\Events\RequestReceived;
@@ -137,9 +142,9 @@ return [
     'warm' => [
         ...Octane::defaultServicesToWarm(),
 
-        App\Contracts\Clients\OrderClientInterface::class,
-        App\Contracts\Observability\MetricStoreInterface::class,
-        App\Observability\MetricsRegistry::class,
+        OrderClientInterface::class,
+        MetricStoreInterface::class,
+        MetricsRegistry::class,
     ],
 
     'flush' => [

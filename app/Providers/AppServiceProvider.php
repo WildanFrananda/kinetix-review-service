@@ -48,7 +48,7 @@ class AppServiceProvider extends ServiceProvider {
 
     private static function required(string $name): string {
         $value = env($name);
-        if (!is_string($value) || $value === "") {
+        if (! is_string($value) || $value === "") {
             throw new RuntimeException("{$name} is required and has no default.");
         }
 

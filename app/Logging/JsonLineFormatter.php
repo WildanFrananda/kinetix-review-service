@@ -49,7 +49,7 @@ final class JsonLineFormatter extends NormalizerFormatter {
         ];
 
         foreach ([...$context, ...$extra] as $key => $value) {
-            if (!in_array($key, self::RESERVED, true)) {
+            if (! in_array($key, self::RESERVED, true)) {
                 $line[$key] = self::bounded($value);
             }
         }
@@ -79,7 +79,7 @@ final class JsonLineFormatter extends NormalizerFormatter {
     }
 
     private static function bounded(mixed $value): mixed {
-        if (!is_array($value)) {
+        if (! is_array($value)) {
             return $value;
         }
 

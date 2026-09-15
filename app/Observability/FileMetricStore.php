@@ -28,7 +28,7 @@ final class FileMetricStore implements MetricStoreInterface {
         $handle = $this->open();
 
         try {
-            if (!flock($handle, LOCK_EX)) {
+            if (! flock($handle, LOCK_EX)) {
                 throw new MetricStoreUnavailableException("could not take an exclusive lock on {$this->path}");
             }
 
@@ -54,7 +54,7 @@ final class FileMetricStore implements MetricStoreInterface {
         $handle = $this->open();
 
         try {
-            if (!flock($handle, LOCK_SH)) {
+            if (! flock($handle, LOCK_SH)) {
                 throw new MetricStoreUnavailableException("could not take a shared lock on {$this->path}");
             }
 
@@ -85,7 +85,7 @@ final class FileMetricStore implements MetricStoreInterface {
     }
 
     /**
-     * @param resource $handle
+     * @param  resource  $handle
      */
     private static function slurp($handle): string {
         rewind($handle);
@@ -100,7 +100,7 @@ final class FileMetricStore implements MetricStoreInterface {
     }
 
     /**
-     * @param resource $handle
+     * @param  resource  $handle
      */
     private static function overwrite($handle, string $contents, string $path): void {
         if (! ftruncate($handle, 0) || rewind($handle) === false) {
@@ -133,14 +133,14 @@ final class FileMetricStore implements MetricStoreInterface {
             );
         }
 
-        if (!is_array($decoded)) {
+        if (! is_array($decoded)) {
             throw new MetricStoreUnavailableException("{$path} does not hold a map of samples");
         }
 
         $state = [];
 
         foreach ($decoded as $key => $value) {
-            if (!is_string($key) || !is_int($value) && !is_float($value)) {
+            if (! is_string($key) || ! is_int($value) && ! is_float($value)) {
                 throw new MetricStoreUnavailableException("{$path} holds a sample that is not a named number");
             }
 
@@ -151,7 +151,7 @@ final class FileMetricStore implements MetricStoreInterface {
     }
 
     /**
-     * @param array<string, float> $state
+     * @param  array<string, float>  $state
      */
     private static function encode(array $state, string $path): string {
         try {

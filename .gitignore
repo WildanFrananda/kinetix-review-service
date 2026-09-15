@@ -27,8 +27,15 @@ Homestead.yaml
 Thumbs.db
 
 **/caddy
+# The frankenphp binary `octane:install` downloads for local development — 161 MB of a thing the
+# runtime image already contains.
 frankenphp
-frankenphp-worker.php
+
+# NOT ignored: public/frankenphp-worker.php. `octane:install` adds it to .gitignore as generated
+# output, and for a repo deployed from a developer's machine that is fine. This image is built from
+# a clean checkout, so an untracked file simply does not exist at build time — the image build failed
+# on exactly that, and the laptop passed because the file was sitting there untracked. It is seven
+# stable lines that decide how the application boots, so it is source, and it is committed.
 
 # Wire contracts, fetched by bin/sync-contracts at a pinned commit. Never committed.
 /.contracts/

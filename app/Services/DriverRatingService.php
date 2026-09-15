@@ -19,7 +19,7 @@ class DriverRatingService {
     public function createRating(AccessClaims $caller, array $data): DriverRating {
         $customerPrincipalId = $caller->principalId;
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
-        if (!$order) {
+        if (! $order) {
             throw new InvalidArgumentException("Order not found.");
         }
 

@@ -10,7 +10,7 @@ final class RequestId {
     public const METADATA_KEY = "x-request-id";
 
     public static function current(): ?string {
-        if (!app()->bound("request")) {
+        if (! app()->bound("request")) {
             return null;
         }
 

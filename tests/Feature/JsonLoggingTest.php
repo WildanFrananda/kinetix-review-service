@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use App\Logging\JsonLineFormatter;
-use Monolog\Handler\StreamHandler;
 use Illuminate\Support\Facades\Log;
+use Monolog\Handler\StreamHandler;
 
 it("logs through the JSON formatter, to the stream Octane actually forwards", function () {
     $handlers = Log::channel("json")->getLogger()->getHandlers();

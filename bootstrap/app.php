@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         $exceptions->render(function (Throwable $e, Request $request): ?JsonResponse {
-            if (!$request->is("api/*") && !$request->expectsJson()) {
+            if (! $request->is("api/*") && ! $request->expectsJson()) {
                 return null;
             }
 

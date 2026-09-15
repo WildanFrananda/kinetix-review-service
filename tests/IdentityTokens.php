@@ -15,6 +15,7 @@ use Psr\Http\Client\ClientInterface;
 
 final class IdentityTokens {
     private static ?OpenSSLAsymmetricKey $key = null;
+
     private static ?string $kid = null;
 
     private static function key(): OpenSSLAsymmetricKey {

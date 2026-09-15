@@ -12,7 +12,7 @@ final class GaugeFamily {
     private array $labelValues = [];
 
     /**
-     * @param string[] $labelNames
+     * @param  string[]  $labelNames
      */
     public function __construct(
         private readonly string $name,
@@ -21,7 +21,7 @@ final class GaugeFamily {
     ) {}
 
     /**
-     * @param string[] $labelValues
+     * @param  string[]  $labelValues
      */
     public function set(float $value, array $labelValues = []): void {
         $key = PrometheusText::key($labelValues);
