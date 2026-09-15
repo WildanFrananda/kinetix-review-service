@@ -1,0 +1,106 @@
+name: PHP runtime base image
+
+# The base image this service builds on: PHP 8.5 with the grpc extension compiled in. That compile takes
+# tens of minutes, which is exactly why it is a separate image built rarely rather than a layer rebuilt on
+# every push.
+#
+# It used to live in the GitLab registry, built by hand on a MacBook — and therefore **arm64 only**. GitHub's
+# runners are amd64, so every CI build of this service failed with "no match for platform in manifest". The
+# fix is not a registry change: the image has to exist for both architectures, because the laptop lab builds
+# arm64 and the server runs amd64.
+#
+# Each architecture is built on its own native runner and the two are joined into one manifest list. Nothing
+# is emulated: QEMU would turn a 30-minute compile into hours.
+#
+# Run it by hand (Actions → this workflow → Run workflow). After it finishes, pin the digest it prints into
+# Dockerfile's FROM and into ci.yml's container image.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - php-runtime.Dockerfile
+      - .github/workflows/php-runtime.yml
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: kinetix-review-php-runtime
+  TAG: php8.5-grpc1
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Name the image
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # One tag per architecture. The manifest list that joins them is created in the next job, so that a
+      # half-finished pair can never masquerade as a complete image.
+      - name: Build ${{ matrix.platform }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: php-runtime.Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}-${{ matrix.suffix }}
+          cache-from: type=gha,scope=${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
+          provenance: false
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Name the image
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/${{ env.IMAGE_NAME }}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Join the two architectures into one image
+        run: |
+          docker buildx imagetools create \
+            --tag "$IMAGE:$TAG" \
+            "$IMAGE:$TAG-amd64" \
+            "$IMAGE:$TAG-arm64"
+          digest="$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{ .Manifest.Digest }}')"
+          {
+            echo "### Pin this in php-runtime's consumers"
+            echo ""
+            echo '```'
+            echo "$IMAGE@$digest"
+            echo '```'
+            echo ""
+            echo "Platforms:"
+            echo '```'
+            docker buildx imagetools inspect "$IMAGE:$TAG" | grep -A1 MediaType | grep Platform
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
