@@ -1,0 +1,18 @@
+# Findings the image scan may report that this service is not exposed to. Each line states why, and
+# nothing goes in here without one.
+
+# GHSA-r277-6w6q-xmqw — kin-openapi: ValidationHandler.Load() fails open, fixed in 0.144.0.
+#
+# Trivy finds v0.140.0 inside usr/local/bin/frankenphp, not in a package this image installs: it is
+# vendored into the FrankenPHP binary, which bundles Caddy and its modules. There is nothing to
+# upgrade — the base is pinned to dunglas/frankenphp:php8.5, and that digest is still what the tag
+# resolves to today, so upstream has not rebuilt with the patched library.
+#
+# The vulnerable code is Caddy's OpenAPI validation handler. This container never configures it:
+# there is no Caddyfile in the repository, no openapi setting in config/, and the image starts with
+# `php artisan octane:start`, which serves PHP and nothing else. A handler that is never loaded
+# cannot fail open.
+#
+# Revisit when dunglas/frankenphp publishes a build carrying kin-openapi 0.144.0 or newer; then this
+# line goes away rather than being renewed.
+GHSA-r277-6w6q-xmqw

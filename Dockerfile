@@ -74,6 +74,20 @@ RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
 # "no match for platform in manifest" while the same build worked on the laptop.
 FROM ghcr.io/wildanfrananda/kinetix-review-php-runtime@sha256:6fa0dfc7d80a06b09d63761ba636d11728ba530f33beebe39035d6ffdfd6a97f AS final
 
+# Security updates for the OS packages the base image carries. Pinning php-runtime by digest freezes
+# its apt packages at whatever the day of the base build shipped, and the scan failed on twelve
+# CRITICALs that were all one thing: perl, perl-base, perl-modules and libperl5.40 at 5.40.1-6 against
+# a fixed 5.40.1-6+deb13u1.
+#
+# Here rather than in docker/php-runtime.Dockerfile, deliberately. That image is rebuilt only when its
+# own Dockerfile changes — months apart — so patching there would be as stale as the pin. This image is
+# rebuilt on every merge, so the packages are as fresh as the last deploy. The digest pin still decides
+# *what* the image is; this only moves it forward on published security fixes.
+RUN set -eux; \
+    apt-get update; \
+    apt-get upgrade -y --no-install-recommends; \
+    rm -rf /var/lib/apt/lists/*
+
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
 
 WORKDIR /app
