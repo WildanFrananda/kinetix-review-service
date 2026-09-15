@@ -23,6 +23,26 @@ jobs:
     container:
       image: ghcr.io/wildanfrananda/kinetix-review-php-runtime:php8.5-grpc1
     steps:
+      # Composer, git and unzip are deliberately NOT in the runtime image: it ships to production, and
+      # docker/php-runtime.Dockerfile installs git only to compile the extensions and purges it again.
+      # So the job that needs build tooling installs it, rather than the image carrying it for everyone.
+      # Without this the run died on `composer: not found` (exit 127) the moment the container finally
+      # started, and checkout fell back to the REST API for want of git.
+      #
+      # The installer is checksum-verified against Composer's published signature: this fetches an
+      # executable over the network into a job that then runs it.
+      - name: Build tooling the runtime image does not carry
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y git unzip
+          curl -sSLo /tmp/composer-setup.php https://getcomposer.org/installer
+          expected="$(curl -sSL https://composer.github.io/installer.sig)"
+          actual="$(php -r 'echo hash_file("sha384", "/tmp/composer-setup.php");')"
+          test "$expected" = "$actual" || { echo "composer installer checksum mismatch"; exit 1; }
+          php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer --quiet
+          rm /tmp/composer-setup.php
+          composer --version
+
       - uses: actions/checkout@v6
       - name: Install dependencies
         # `.env.testing` is committed and carries everything the suite needs.

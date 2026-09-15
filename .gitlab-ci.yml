@@ -32,6 +32,19 @@ stages:
   # GHCR, and public, so this pulls with no credentials — GitLab needs no token for it.
   image: ghcr.io/wildanfrananda/kinetix-review-php-runtime:php8.5-grpc1
   before_script:
+    # Composer, git and unzip are deliberately absent from the runtime image — it ships to production,
+    # and docker/php-runtime.Dockerfile purges git after compiling the extensions. The job that needs
+    # build tooling installs it; the image does not carry it for everyone. Mirrors the same step in
+    # .github/workflows/ci.yml, and the installer is checksum-verified there for the same reason.
+    - apt-get update
+    - apt-get install --no-install-recommends -y git unzip
+    - curl -sSLo /tmp/composer-setup.php https://getcomposer.org/installer
+    - |
+      expected="$(curl -sSL https://composer.github.io/installer.sig)"
+      actual="$(php -r 'echo hash_file("sha384", "/tmp/composer-setup.php");')"
+      test "$expected" = "$actual" || { echo "composer installer checksum mismatch"; exit 1; }
+    - php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer --quiet
+    - rm /tmp/composer-setup.php
     # No `cp .env.example .env`. `.env.testing` is committed and carries everything the suite
     # needs; writing a `.env` here would create the second source of truth that s2-gate forbids.
     - composer install --no-interaction --prefer-dist --no-progress

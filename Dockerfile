@@ -95,11 +95,16 @@ COPY --from=vendor /app /app
 #
 # Prove the install actually arrived. `artisan --version` is not used: it boots the framework
 # and would demand the very credentials this image must not contain.
-RUN mkdir -p storage/logs storage/framework/cache/data storage/framework/metrics \
-    && test -f vendor/autoload.php \
-    && test -f bootstrap/cache/packages.php \
-    && test -f public/frankenphp-worker.php \
-    && php -r 'require "vendor/autoload.php"; exit(class_exists("Laravel\\Octane\\OctaneServiceProvider") ? 0 : 1);'
+# Each assertion says what was missing. `test -f` is silent when it fails, so the chain these four
+# used to form reported a bare non-zero exit with no output at all — the build said only that
+# Dockerfile:98 failed, and which of the four was anyone's guess.
+RUN set -eu; \
+    mkdir -p storage/logs storage/framework/cache/data storage/framework/metrics; \
+    for f in vendor/autoload.php bootstrap/cache/packages.php public/frankenphp-worker.php; do \
+      test -f "$f" || { echo "missing from the image: $f"; exit 1; }; \
+    done; \
+    php -r 'require "vendor/autoload.php"; exit(class_exists("Laravel\\Octane\\OctaneServiceProvider") ? 0 : 1);' \
+      || { echo "vendor/autoload.php loads but Laravel\\Octane\\OctaneServiceProvider is not on the classmap"; exit 1; }
 
 # Explicit at runtime as well as in config: the two should never disagree, and this is the one
 # a reader checks first.
