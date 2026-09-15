@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - php-runtime.Dockerfile
+      - docker/php-runtime.Dockerfile
       - .github/workflows/php-runtime.yml
     branches: [main]
 
@@ -64,7 +64,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: php-runtime.Dockerfile
+          file: docker/php-runtime.Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ env.IMAGE }}:${{ env.TAG }}-${{ matrix.suffix }}
