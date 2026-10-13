@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use App\Clients\GrpcOrderClient;
+use App\Clients\OrderDetails;
+use Common\V1\OrderStatus;
+use Order\V1\GetOrderDetailsResponse;
+use Order\V1\OrderLine;
 
 $classify = function (int $code): bool {
     $method = new ReflectionMethod(GrpcOrderClient::class, "isAnswerAboutTheOrder");
@@ -37,3 +41,56 @@ it("pins the same wire values the grpc extension does", function () {
     expect($codes->getConstant("STATUS_NOT_FOUND"))->toBe(\Grpc\STATUS_NOT_FOUND);
     expect($codes->getConstant("STATUS_INVALID_ARGUMENT"))->toBe(\Grpc\STATUS_INVALID_ARGUMENT);
 })->skip(fn (): bool => ! extension_loaded("grpc"), "ext-grpc is not loaded on this machine");
+
+$detailsOf = function (GetOrderDetailsResponse $response): OrderDetails {
+    $method = new ReflectionMethod(GrpcOrderClient::class, "detailsOf");
+
+    return $method->invoke(null, $response);
+};
+
+function orderAnswer(int $status): GetOrderDetailsResponse {
+    $line = new OrderLine;
+    $line->setProductId("TSHIRT-BLK-M");
+
+    $response = new GetOrderDetailsResponse;
+    $response->setFound(true);
+    $response->setOrderId("5c0f2a8e-9d41-4b7a-8e3c-1f6d2b9a7e05");
+    $response->setCustomerPrincipalId("11111111-2222-3333-4444-555555555555");
+    $response->setMerchantPrincipalId("3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3");
+    $response->setDriverPrincipalId("b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914");
+    $response->setStatus($status);
+    $response->setLines([$line]);
+
+    return $response;
+}
+
+it("reads an order order-service calls delivered or completed as delivered", function () use ($detailsOf) {
+    expect($detailsOf(orderAnswer(OrderStatus::ORDER_STATUS_DELIVERED))->delivered)->toBeTrue();
+    expect($detailsOf(orderAnswer(OrderStatus::ORDER_STATUS_COMPLETED))->delivered)->toBeTrue();
+});
+
+it("reads every other order status as not delivered", function () use ($detailsOf) {
+    $undelivered = [
+        OrderStatus::ORDER_STATUS_UNSPECIFIED,
+        OrderStatus::ORDER_STATUS_PENDING_PAYMENT,
+        OrderStatus::ORDER_STATUS_PAID,
+        OrderStatus::ORDER_STATUS_PACKING,
+        OrderStatus::ORDER_STATUS_IN_TRANSIT,
+        OrderStatus::ORDER_STATUS_CANCELLED,
+        OrderStatus::ORDER_STATUS_REFUNDED,
+    ];
+
+    foreach ($undelivered as $status) {
+        expect($detailsOf(orderAnswer($status))->delivered)->toBeFalse();
+    }
+});
+
+it("carries the order's buyer, merchant, courier and what was bought", function () use ($detailsOf) {
+    $details = $detailsOf(orderAnswer(OrderStatus::ORDER_STATUS_DELIVERED));
+
+    expect($details->customerPrincipalId)->toBe("11111111-2222-3333-4444-555555555555");
+    expect($details->merchantPrincipalId)->toBe("3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3");
+    expect($details->driverPrincipalId)->toBe("b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914");
+    expect($details->contains("TSHIRT-BLK-M"))->toBeTrue();
+    expect($details->contains("SOMETHING-NEVER-BOUGHT"))->toBeFalse();
+});

@@ -9,7 +9,6 @@ use App\Observability\MetricsRegistry;
 use App\Observability\RequestId;
 use App\Resilience\CircuitBreaker;
 use App\Security\ServiceIdentity;
-use Common\V1\Money;
 use Common\V1\OrderStatus;
 use Grpc\ChannelCredentials;
 use Illuminate\Support\Facades\Log;
@@ -29,6 +28,11 @@ final class GrpcOrderClient implements OrderClientInterface {
 
     private const STATUS_NOT_FOUND = 5;
 
+    private const DELIVERED_STATUSES = [
+        OrderStatus::ORDER_STATUS_DELIVERED,
+        OrderStatus::ORDER_STATUS_COMPLETED,
+    ];
+
     private readonly OrderServiceClient $stub;
 
     private readonly CircuitBreaker $breaker;
@@ -42,14 +46,17 @@ final class GrpcOrderClient implements OrderClientInterface {
             $hostname = config("services.order_service.grpc_url", "kinetix-order-service:50055");
         }
 
-        $this->stub = new OrderServiceClient($hostname, [
-            "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
-        ]);
+        $this->stub = new OrderServiceClient(
+            $hostname,
+            [
+                "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
+            ]
+        );
 
         $this->breaker = new CircuitBreaker("order-service");
     }
 
-    public function getOrderDetails(string $orderId): ?array {
+    public function getOrderDetails(string $orderId): ?OrderDetails {
         if (! $this->breaker->allows()) {
             $this->metrics->recordGrpcClientShortCircuit(MetricsRegistry::ORDER_PEER);
 
@@ -86,13 +93,16 @@ final class GrpcOrderClient implements OrderClientInterface {
 
             $this->breaker->recordFailure();
 
-            Log::warning("order-service GetOrderDetails threw before answering", [
-                "breaker" => $this->breaker->name(),
-                "exception" => $ex::class,
-                "message" => $ex->getMessage(),
-                "order_id" => $orderId,
-                "request_id" => RequestId::current() ?? "-",
-            ]);
+            Log::warning(
+                "order-service GetOrderDetails threw before answering",
+                [
+                    "breaker" => $this->breaker->name(),
+                    "exception" => $ex::class,
+                    "message" => $ex->getMessage(),
+                    "order_id" => $orderId,
+                    "request_id" => RequestId::current() ?? "-",
+                ]
+            );
 
             throw OrderServiceUnavailableException::transport();
         }
@@ -100,13 +110,16 @@ final class GrpcOrderClient implements OrderClientInterface {
         if (! $answered) {
             $this->breaker->recordFailure();
 
-            Log::warning("order-service GetOrderDetails did not answer about the order", [
-                "breaker" => $this->breaker->name(),
-                "grpc_code" => $code,
-                "grpc_details" => $details,
-                "order_id" => $orderId,
-                "request_id" => RequestId::current() ?? "-",
-            ]);
+            Log::warning(
+                "order-service GetOrderDetails did not answer about the order",
+                [
+                    "breaker" => $this->breaker->name(),
+                    "grpc_code" => $code,
+                    "grpc_details" => $details,
+                    "order_id" => $orderId,
+                    "request_id" => RequestId::current() ?? "-",
+                ]
+            );
 
             throw OrderServiceUnavailableException::transport();
         }
@@ -117,36 +130,28 @@ final class GrpcOrderClient implements OrderClientInterface {
             return null;
         }
 
-        $lines = [];
+        return self::detailsOf($response);
+    }
+
+    private static function detailsOf(GetOrderDetailsResponse $response): OrderDetails {
+        $productIds = [];
         foreach ($response->getLines() as $line) {
-            $lines[] = [
-                "product_id" => $line->getProductId(),
-                "product_title" => $line->getProductTitle(),
-                "unit_price" => self::major($line->getUnitPrice()),
-                "quantity" => $line->getQuantity(),
-                "line_subtotal" => self::major($line->getLineSubtotal()),
-            ];
+            $productIds[] = $line->getProductId();
         }
 
-        return [
-            "order_id" => $response->getOrderId(),
-            "order_number" => $response->getOrderNumber(),
-            "customer_principal_id" => $response->getCustomerPrincipalId(),
-            "status" => OrderStatus::name($response->getStatus()),
-            "subtotal" => self::major($response->getSubtotal()),
-            "discount_amount" => self::major($response->getDiscountAmount()),
-            "final_total" => self::major($response->getFinalTotal()),
-            "items" => $lines,
-        ];
+        return new OrderDetails(
+            $response->getOrderId(),
+            $response->getCustomerPrincipalId(),
+            $response->getMerchantPrincipalId(),
+            $response->getDriverPrincipalId(),
+            in_array($response->getStatus(), self::DELIVERED_STATUSES, true),
+            $productIds
+        );
     }
 
     private static function isAnswerAboutTheOrder(int $code): bool {
         return $code === self::STATUS_OK
             || $code === self::STATUS_NOT_FOUND
             || $code === self::STATUS_INVALID_ARGUMENT;
-    }
-
-    private static function major(?Money $money): string {
-        return $money === null ? "0.00" : number_format($money->getAmountMinor() / 100, 2, ".", "");
     }
 }

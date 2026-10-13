@@ -17,41 +17,28 @@ class ProductReviewService {
     ) {}
 
     public function createReview(AccessClaims $caller, array $data): ProductReview {
-        $customerPrincipalId = $caller->principalId;
-
         $order = $this->orderClient->getOrderDetails($data["order_id"]);
-        if (! $order) {
+        if ($order === null) {
             throw new InvalidArgumentException("Order not found.");
         }
 
-        if (($order["customer_principal_id"] ?? "") !== $caller->principalId) {
+        if ($order->customerPrincipalId !== $caller->principalId) {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }
 
-        $status = strtoupper((string) ($order["status"] ?? ""));
-        if ($status !== "DELIVERED" && $status !== "COMPLETED") {
+        if (! $order->delivered) {
             throw new InvalidArgumentException("Reviews are only allowed for DELIVERED or COMPLETED orders.");
         }
 
-        $items = $order["items"] ?? [];
-        $purchasedProduct = false;
-        foreach ($items as $item) {
-            $itemId = (string) ($item["product_id"] ?? "");
-            if ($itemId === $data["product_id"]) {
-                $purchasedProduct = true;
-                break;
-            }
-        }
-
-        if (! $purchasedProduct) {
+        if (! $order->contains($data["product_id"])) {
             throw new InvalidArgumentException("Product was not purchased in this order.");
         }
 
         return $this->repository->create([
             "order_id" => $data["order_id"],
-            "customer_principal_id" => $customerPrincipalId,
+            "customer_principal_id" => $caller->principalId,
             "product_id" => $data["product_id"],
-            "merchant_principal_id" => $data["merchant_principal_id"] ?? null,
+            "merchant_principal_id" => $order->merchantPrincipalId !== "" ? $order->merchantPrincipalId : null,
             "rating" => $data["rating"],
             "comment" => $data["comment"] ?? null,
         ]);

@@ -20,7 +20,6 @@ class DriverRatingController extends Controller {
 
         $validated = $request->validate([
             "order_id" => ["required", "string"],
-            "driver_principal_id" => ["required", "string", "max:64"],
             "rating" => ["required", "integer", "min:1", "max:5"],
             "comment" => ["nullable", "string", "max:1000"],
         ]);
@@ -30,10 +29,13 @@ class DriverRatingController extends Controller {
 
             return response()->json($rating, 201);
         } catch (InvalidArgumentException $ex) {
-            return response()->json([
-                "error" => "UNPROCESSABLE_ENTITY",
-                "message" => $ex->getMessage(),
-            ], 422);
+            return response()->json(
+                [
+                    "error" => "UNPROCESSABLE_ENTITY",
+                    "message" => $ex->getMessage(),
+                ],
+                422
+            );
         }
     }
 

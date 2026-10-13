@@ -7,10 +7,15 @@ namespace App\Repositories;
 use App\Contracts\Repositories\ProductReviewRepositoryInterface;
 use App\Models\ProductReview;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class EloquentProductReviewRepository implements ProductReviewRepositoryInterface {
     public function create(array $data): ProductReview {
-        return ProductReview::create($data);
+        try {
+            return ProductReview::create($data);
+        } catch (UniqueConstraintViolationException $ex) {
+            throw AlreadyReviewedException::product($ex);
+        }
     }
 
     public function getPaginatedByProductId(string $productId, int $perPage = 15): LengthAwarePaginator {

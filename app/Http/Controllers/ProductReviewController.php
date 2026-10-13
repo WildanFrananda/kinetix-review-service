@@ -21,7 +21,6 @@ class ProductReviewController extends Controller {
         $validated = $request->validate([
             "order_id" => ["required", "string"],
             "product_id" => ["required", "string"],
-            "merchant_principal_id" => ["nullable", "string", "max:64"],
             "rating" => ["required", "integer", "min:1", "max:5"],
             "comment" => ["nullable", "string", "max:1000"],
         ]);
@@ -31,10 +30,13 @@ class ProductReviewController extends Controller {
 
             return response()->json($review, 201);
         } catch (InvalidArgumentException $ex) {
-            return response()->json([
-                "error" => "UNPROCESSABLE_ENTITY",
-                "message" => $ex->getMessage(),
-            ], 422);
+            return response()->json(
+                [
+                    "error" => "UNPROCESSABLE_ENTITY",
+                    "message" => $ex->getMessage(),
+                ],
+                422
+            );
         }
     }
 
