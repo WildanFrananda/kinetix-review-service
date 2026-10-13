@@ -35,12 +35,12 @@ COPY bin ./bin
 # The wire contracts and the PHP classes generated from them. Fetched and generated rather than
 # committed: this repository tracks no .proto, which is what S9 measures.
 # apk, not apt-get: the vendor stage is composer:2, which is Alpine.
-RUN apk add --no-cache git protobuf \
+RUN apk add --no-cache git protobuf protobuf-dev \
   && sh bin/sync-contracts \
   && mkdir -p generated \
   && protoc --php_out=generated -I .contracts/proto \
        .contracts/proto/order/v1/order.proto .contracts/proto/common/v1/common.proto \
-  && apk del protobuf
+  && apk del protobuf protobuf-dev
 
 # The one hand-written stub: `grpc_php_plugin` is a separate binary and the generated service
 # client is fifteen lines of _simpleRequest.

@@ -13,8 +13,8 @@ set -eu
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="https://github.com/WildanFrananda/kinetix-contracts.git"
-TAG="v1.0.5"
-COMMIT="ff27aecce05b548c5e37217419313c2387aed9bd"
+TAG="v1.1.0"
+COMMIT="5772ea48cbd6299e18916d768d8527c0f415760c"
 DEST="$HERE/.contracts"
 
 if [ -d "$DEST/.git" ]; then

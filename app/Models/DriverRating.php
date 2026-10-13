@@ -21,6 +21,11 @@ class DriverRating extends Model {
         "comment",
     ];
 
+    protected $hidden = [
+        "customer_principal_id",
+        "order_id",
+    ];
+
     protected $casts = [
         "rating" => "integer",
     ];

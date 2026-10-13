@@ -7,10 +7,15 @@ namespace App\Repositories;
 use App\Contracts\Repositories\DriverRatingRepositoryInterface;
 use App\Models\DriverRating;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class EloquentDriverRatingRepository implements DriverRatingRepositoryInterface {
     public function create(array $data): DriverRating {
-        return DriverRating::create($data);
+        try {
+            return DriverRating::create($data);
+        } catch (UniqueConstraintViolationException $ex) {
+            throw AlreadyReviewedException::driver($ex);
+        }
     }
 
     public function getPaginatedByDriverId(string $driverPrincipalId, int $perPage = 15): LengthAwarePaginator {
