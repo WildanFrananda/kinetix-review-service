@@ -129,6 +129,23 @@ CVE-2025-22871, and 3.7.0 was six days old. `spiral/roadrunner` is pinned to 202
 never touches it, and the runtime image does not carry it, so `composer install` ignores that platform
 requirement everywhere — keep `relay: pipes`, or add the extension to `docker/php-runtime.Dockerfile` first.
 
+### ext-grpc is built once per process, under a lock
+
+FrankenPHP runs PHP thread-safe (ZTS) in one process, a thread per worker — thirteen on production's six CPUs —
+and every worker warms `GrpcOrderClient` as it boots. ext-grpc 1.84 keeps process-wide state that nothing
+guards: `ChannelCredentials::setDefaultRootsPem`, which `BaseStub` calls whenever no default roots are set,
+`gpr_realloc`s one global buffer, and the persistent-channel tables are looked up without their mutex. Workers
+building their first client together corrupted the heap: review v1.1.0's deploy on 2026-10-17 segfaulted (exit
+139, dockerd's log; nothing in the container's) in two of its three boots and was rolled back. v1.0.0 has the
+same client, so the race was latent; v1.1.0 only moved the timing.
+
+`GrpcOrderClient` therefore builds its stub inside `ProcessWideLock` on `storage/framework/grpc-setup.lock`.
+`flock` serialises threads as well as processes, because each `fopen` is an open file description of its own.
+It also asks for `force_new`, so its channel never enters the shared tables: each worker owns one channel, which
+ends with the worker, every 500 requests. In the lab at 48 workers the old image segfaulted twice in 20 boots
+and this one never in 40. Build any other ext-grpc client in the HTTP process the same way. review-grpc is not
+affected: RoadRunner's workers are processes, not threads.
+
 ### The suite runs on Postgres
 
 The log is a Postgres schema, so the whole suite runs on Postgres in both CIs; the migration refuses any other

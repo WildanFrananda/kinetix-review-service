@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Clients;
 
+use App\Concurrency\ProcessWideLock;
 use App\Contracts\Clients\OrderClientInterface;
 use App\Observability\MetricsRegistry;
 use App\Observability\RequestId;
@@ -33,6 +34,12 @@ final class GrpcOrderClient implements OrderClientInterface {
         OrderStatus::ORDER_STATUS_COMPLETED,
     ];
 
+    private const CHANNEL_ARGUMENTS = [
+        "force_new" => true,
+    ];
+
+    private const SETUP_LOCK = "framework/grpc-setup.lock";
+
     private readonly OrderServiceClient $stub;
 
     private readonly CircuitBreaker $breaker;
@@ -46,11 +53,16 @@ final class GrpcOrderClient implements OrderClientInterface {
             $hostname = config("services.order_service.grpc_url", "kinetix-order-service:50055");
         }
 
-        $this->stub = new OrderServiceClient(
-            $hostname,
-            [
-                "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
-            ]
+        $this->stub = (new ProcessWideLock(storage_path(self::SETUP_LOCK)))->hold(
+            static function () use ($hostname, $credentials): OrderServiceClient {
+                return new OrderServiceClient(
+                    $hostname,
+                    [
+                        ...self::CHANNEL_ARGUMENTS,
+                        "credentials" => $credentials ?? ServiceIdentity::channelCredentials(),
+                    ]
+                );
+            }
         );
 
         $this->breaker = new CircuitBreaker("order-service");

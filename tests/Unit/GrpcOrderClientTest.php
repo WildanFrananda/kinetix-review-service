@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 use App\Clients\GrpcOrderClient;
 use App\Clients\OrderDetails;
+use App\Clients\OrderServiceUnavailableException;
+use App\Observability\MetricsRegistry;
 use Common\V1\OrderStatus;
+use Grpc\ChannelCredentials;
+use Illuminate\Support\Facades\Log;
 use Order\V1\GetOrderDetailsResponse;
 use Order\V1\OrderLine;
 
@@ -94,3 +98,34 @@ it("carries the order's buyer, merchant, courier and what was bought", function 
     expect($details->contains("TSHIRT-BLK-M"))->toBeTrue();
     expect($details->contains("SOMETHING-NEVER-BOUGHT"))->toBeFalse();
 });
+
+it("asks ext-grpc for a channel of its own, never the process-wide persistent one", function () {
+    $client = new ReflectionClass(GrpcOrderClient::class);
+
+    expect($client->getConstant("CHANNEL_ARGUMENTS"))->toBe(["force_new" => true]);
+});
+
+it("builds its stub under the process-wide setup lock and lets the lock go", function () {
+    new GrpcOrderClient(app(MetricsRegistry::class), "127.0.0.1:1", ChannelCredentials::createSsl());
+
+    $lock = fopen(storage_path("framework/grpc-setup.lock"), "c");
+    $free = flock($lock, LOCK_EX | LOCK_NB);
+    flock($lock, LOCK_UN);
+    fclose($lock);
+
+    expect($free)->toBeTrue();
+})->skip(fn (): bool => ! extension_loaded("grpc"), "ext-grpc is not loaded on this machine");
+
+it("calls over the channel it built, so a port nobody serves answers UNAVAILABLE", function () {
+    Log::shouldReceive("warning")
+        ->once()
+        ->withArgs(function (string $message, array $context): bool {
+            return $message === "order-service GetOrderDetails did not answer about the order"
+                && $context["grpc_code"] === \Grpc\STATUS_UNAVAILABLE;
+        });
+
+    $client = new GrpcOrderClient(app(MetricsRegistry::class), "127.0.0.1:1", ChannelCredentials::createSsl());
+
+    expect(fn () => $client->getOrderDetails("5c0f2a8e-9d41-4b7a-8e3c-1f6d2b9a7e05"))
+        ->toThrow(OrderServiceUnavailableException::class);
+})->skip(fn (): bool => ! extension_loaded("grpc"), "ext-grpc is not loaded on this machine");
