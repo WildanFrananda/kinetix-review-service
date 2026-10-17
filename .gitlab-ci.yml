@@ -47,7 +47,9 @@ stages:
     - rm /tmp/composer-setup.php
     # No `cp .env.example .env`. `.env.testing` is committed and carries everything the suite
     # needs; writing a `.env` here would create the second source of truth that s2-gate forbids.
-    - composer install --no-interaction --prefer-dist --no-progress
+    # ext-sockets is declared by spiral/goridge for its socket relay; review-grpc's worker talks to
+    # RoadRunner over pipes, which never touches it, and the runtime image does not carry it.
+    - composer install --no-interaction --prefer-dist --no-progress --ignore-platform-req=ext-sockets
 
 secret-scan:
   extends: .secret-scan
@@ -67,6 +69,17 @@ build-image:
 pest:
   extends: .php
   stage: test
+  # The suite runs on Postgres, never SQLite: the review evidence log is an xid8 cursor and the
+  # triggers that write and guard it. phpunit.xml names a throwaway database.
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: ci
+    POSTGRES_PASSWORD: ci-ephemeral-not-a-deployed-credential
+    POSTGRES_DB: kinetix_review_test
+    DB_HOST: postgres
+    DB_PORT: "5432"
   script:
     - php vendor/bin/pest --colors=never
     # A suite that runs no tests is a failed suite, not a passing one — which is exactly what
@@ -75,6 +88,23 @@ pest:
       count=$(php vendor/bin/pest --colors=never 2>&1 | sed -n 's/.*Tests:.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p' | tail -1)
       echo "executed ${count:-0} tests"
       test "${count:-0}" -ge 15 || { echo "expected at least 15 tests, ran ${count:-0} — the suite is not being discovered"; exit 1; }
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# review-grpc's RoadRunner binary: the SPIFFE allow list and the call counter it carries.
+rr:
+  image: golang:1.26-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c
+  stage: test
+  variables:
+    GOFLAGS: -buildvcs=false
+  script:
+    - cd rr
+    - |
+      unformatted="$(gofmt -l .)"
+      test -z "$unformatted" || { echo "not gofmt-formatted: $unformatted"; exit 1; }
+    - go vet ./...
+    - go test -count=1 ./...
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -22,6 +22,22 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/wildanfrananda/kinetix-review-php-runtime:php8.5-grpc1
+    # The suite runs on Postgres, never SQLite: the review evidence log is an xid8 cursor and the
+    # triggers that write and guard it. phpunit.xml names a throwaway database; the job container
+    # reaches the service by its name.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-ephemeral-not-a-deployed-credential
+          POSTGRES_DB: kinetix_review_test
+        options: >-
+          --health-cmd="pg_isready -U ci"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    env:
+      DB_HOST: postgres
+      DB_PORT: "5432"
     steps:
       # Composer, git and unzip are deliberately NOT in the runtime image: it ships to production, and
       # docker/php-runtime.Dockerfile installs git only to compile the extensions and purges it again.
@@ -46,7 +62,9 @@ jobs:
       - uses: actions/checkout@v6
       - name: Install dependencies
         # `.env.testing` is committed and carries everything the suite needs.
-        run: composer install --no-interaction --prefer-dist --no-progress
+        # ext-sockets is declared by spiral/goridge for its socket relay; review-grpc's worker talks to
+        # RoadRunner over pipes, which never touches it, and the runtime image does not carry it.
+        run: composer install --no-interaction --prefer-dist --no-progress --ignore-platform-req=ext-sockets
       - name: Lint
         run: ./vendor/bin/pint --test
       - name: Pest
@@ -56,6 +74,25 @@ jobs:
           count=$(php vendor/bin/pest --colors=never 2>&1 | sed -n 's/.*Tests:.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p' | tail -1)
           echo "executed ${count:-0} tests"
           test "${count:-0}" -ge 15 || { echo "expected at least 15 tests, ran ${count:-0}"; exit 1; }
+
+  # review-grpc's RoadRunner binary: the SPIFFE allow list and the call counter it carries.
+  rr:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.26-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c
+    env:
+      GOFLAGS: -buildvcs=false
+    defaults:
+      run:
+        working-directory: rr
+    steps:
+      - uses: actions/checkout@v6
+      - name: Format
+        run: |
+          unformatted="$(gofmt -l .)"
+          test -z "$unformatted" || { echo "not gofmt-formatted: $unformatted"; exit 1; }
+      - run: go vet ./...
+      - run: go test -count=1 ./...
 
   build-image:
     runs-on: ubuntu-latest

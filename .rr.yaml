@@ -1,0 +1,40 @@
+version: "3"
+
+server:
+  command: "php grpc-worker.php"
+  relay: pipes
+
+grpc:
+  listen: "tcp://0.0.0.0:${GRPC_PORT}"
+  proto:
+    - ".contracts/proto/review/v1/review.proto"
+  tls:
+    key: "${KINETIX_PKI_DIR}/tls.key"
+    cert: "${KINETIX_PKI_DIR}/tls.crt"
+    root_ca: "${KINETIX_PKI_DIR}/ca.pem"
+    client_auth_type: require_and_verify_client_cert
+  interceptors:
+    - kinetix_metrics
+    - kinetix_peers
+  pool:
+    num_workers: 2
+    max_jobs: 500
+    allocate_timeout: 60s
+    destroy_timeout: 30s
+
+kinetix_peers:
+  allowed: "${KINETIX_GRPC_ALLOWED_PEERS}"
+  trust_domains: "${KINETIX_TRUST_DOMAIN}"
+
+kinetix_metrics:
+  service: kinetix-review-service
+  version: "${APP_VERSION:-0.1.0}"
+  address: "0.0.0.0:${METRICS_PORT}"
+
+status:
+  address: "127.0.0.1:2114"
+
+logs:
+  mode: production
+  encoding: json
+  level: info
