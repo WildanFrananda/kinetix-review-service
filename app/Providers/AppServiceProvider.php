@@ -10,10 +10,12 @@ use App\Contracts\Clients\OrderClientInterface;
 use App\Contracts\Observability\MetricStoreInterface;
 use App\Contracts\Repositories\DriverRatingRepositoryInterface;
 use App\Contracts\Repositories\ProductReviewRepositoryInterface;
+use App\Contracts\Repositories\ReviewEvidenceRepositoryInterface;
 use App\Observability\FileMetricStore;
 use App\Observability\MetricsRegistry;
 use App\Repositories\EloquentDriverRatingRepository;
 use App\Repositories\EloquentProductReviewRepository;
+use App\Repositories\EloquentReviewEvidenceRepository;
 use App\Security\TokenVerifier;
 use GuzzleHttp\Client;
 use Illuminate\Contracts\Foundation\Application;
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider {
     public function register(): void {
         $this->app->bind(ProductReviewRepositoryInterface::class, EloquentProductReviewRepository::class);
         $this->app->bind(DriverRatingRepositoryInterface::class, EloquentDriverRatingRepository::class);
+        $this->app->bind(ReviewEvidenceRepositoryInterface::class, EloquentReviewEvidenceRepository::class);
         $this->app->singleton(OrderClientInterface::class, GrpcOrderClient::class);
         $this->app->singleton(MetricStoreInterface::class, static function (): MetricStoreInterface {
             return new FileMetricStore((string) config("metrics.store_file"));

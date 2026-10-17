@@ -11,6 +11,9 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Evidence">
+            <directory>tests/Evidence</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -23,8 +26,16 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!-- Postgres, never SQLite: the review evidence log is a Postgres schema - an xid8 cursor and
+             the triggers that write and guard it - and a suite on another engine would prove nothing
+             about it. These are a throwaway test database's; CI and a local run override the host
+             and port from the environment, which PHPUnit does not overwrite. -->
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="5432"/>
+        <env name="DB_DATABASE" value="kinetix_review_test"/>
+        <env name="DB_USERNAME" value="ci"/>
+        <env name="DB_PASSWORD" value="ci-ephemeral-not-a-deployed-credential"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

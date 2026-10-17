@@ -40,11 +40,13 @@ RUN apk add --no-cache git protobuf protobuf-dev \
   && mkdir -p generated \
   && protoc --php_out=generated -I .contracts/proto \
        .contracts/proto/order/v1/order.proto .contracts/proto/common/v1/common.proto \
+       .contracts/proto/review/v1/review.proto \
   && apk del protobuf protobuf-dev
 
-# The one hand-written stub: `grpc_php_plugin` is a separate binary and the generated service
-# client is fifteen lines of _simpleRequest.
+# The two hand-written stubs: `grpc_php_plugin` and RoadRunner's `protoc-gen-php-grpc` are separate
+# binaries, and what they would generate is a fifteen-line client and a three-line interface.
 COPY generated/Order/V1/OrderServiceClient.php ./generated/Order/V1/OrderServiceClient.php
+COPY generated/Review/V1/ReviewEvidenceServiceInterface.php ./generated/Review/V1/ReviewEvidenceServiceInterface.php
 
 RUN composer install \
       --no-dev \
@@ -52,17 +54,33 @@ RUN composer install \
       --no-interaction \
       --prefer-dist \
       --optimize-autoloader \
-      --ignore-platform-req=ext-grpc
+      --ignore-platform-req=ext-grpc \
+      --ignore-platform-req=ext-sockets
 
 COPY . .
 
-RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
+RUN rm -rf rr bootstrap/cache/packages.php bootstrap/cache/services.php \
     && composer dump-autoload --no-dev --optimize --classmap-authoritative --no-scripts \
     && DB_USERNAME=build-time-placeholder \
        DB_PASSWORD=build-time-placeholder \
        php artisan package:discover --ansi \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php
+
+# review-grpc's server: RoadRunner composed from its plugins with two of ours, kinetix_calls and
+# kinetix_peers, which counts every call and refuses any peer the allow list does not grant. RoadRunner
+# hands PHP no client certificate, so the SPIFFE check has to live in Go. Same Go as the notary's image.
+FROM golang:1.26-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS rr
+
+WORKDIR /src
+
+COPY rr/go.mod rr/go.sum ./
+
+RUN go mod download
+
+COPY rr/ ./
+
+RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/rr .
 
 # The PHP runtime — FrankenPHP plus grpc, protobuf, pdo_pgsql and pcntl — is built by
 # docker/php-runtime.Dockerfile and published by .github/workflows/php-runtime.yml. Pinned by digest:
@@ -94,6 +112,8 @@ WORKDIR /app
 
 COPY --from=vendor /app /app
 
+COPY --from=rr /out/rr /usr/local/bin/rr
+
 # The writable directories Laravel expects. They are NOT copied in: .dockerignore excludes
 # storage/logs/ and storage/framework/cache/ so a host log file never reaches a distributable
 # layer, and git does not track empty directories either, so nothing recreates them. Without
@@ -114,7 +134,8 @@ COPY --from=vendor /app /app
 # Dockerfile:98 failed, and which of the four was anyone's guess.
 RUN set -eu; \
     mkdir -p storage/logs storage/framework/cache/data storage/framework/metrics; \
-    for f in vendor/autoload.php bootstrap/cache/packages.php public/frankenphp-worker.php; do \
+    for f in vendor/autoload.php bootstrap/cache/packages.php public/frankenphp-worker.php grpc-worker.php .rr.yaml \
+             .contracts/proto/review/v1/review.proto /usr/local/bin/rr; do \
       test -f "$f" || { echo "missing from the image: $f"; exit 1; }; \
     done; \
     php -r 'require "vendor/autoload.php"; exit(class_exists("Laravel\\Octane\\OctaneServiceProvider") ? 0 : 1);' \

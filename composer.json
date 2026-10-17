@@ -18,6 +18,8 @@
         "laravel/octane": "^2.19",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
+        "spiral/roadrunner": "2025.1.15",
+        "spiral/roadrunner-grpc": "~3.6.0",
         "symfony/cache": "^8.1"
     },
     "require-dev": {

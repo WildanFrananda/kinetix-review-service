@@ -8,11 +8,12 @@ use App\Contracts\Repositories\ProductReviewRepositoryInterface;
 use App\Models\ProductReview;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 
 class EloquentProductReviewRepository implements ProductReviewRepositoryInterface {
     public function create(array $data): ProductReview {
         try {
-            return ProductReview::create($data);
+            return DB::transaction(fn (): ProductReview => ProductReview::create($data));
         } catch (UniqueConstraintViolationException $ex) {
             throw AlreadyReviewedException::product($ex);
         }
