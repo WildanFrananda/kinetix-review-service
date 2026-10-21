@@ -187,3 +187,11 @@ engine. `tests/Evidence` commits for real — a sandboxed transaction never comm
 transaction sees of another — and runs `migrate:fresh` before and after each test, because the log can never be
 emptied.
 
+### The final stage is never taken from the build cache
+
+The final stage runs `apt-get upgrade` on the pinned php-runtime, so the image carries Debian's security fixes
+published up to its build. The merge build restores layers from the GitHub Actions cache, and a cached upgrade is
+the packages of whichever build first ran it: on 2026-10-21 the scan failed on three kernel CVEs in
+`linux-libc-dev` 6.12.111-1 while trixie-security already shipped the fix, 6.12.113-1. `build-and-push.yml`
+therefore builds the `final` stage with `no-cache-filters: final`; the vendor and rr stages stay cached. Keep the
+stage named `final`, or the filter matches nothing and the upgrade goes stale again in silence.

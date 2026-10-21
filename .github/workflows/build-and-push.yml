@@ -57,6 +57,7 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache-filters: final
           provenance: false
 
       # CRITICAL only, and only where a fix exists. A finding nobody can act on today would block
