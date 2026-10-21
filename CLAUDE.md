@@ -187,6 +187,20 @@ engine. `tests/Evidence` commits for real — a sandboxed transaction never comm
 transaction sees of another — and runs `migrate:fresh` before and after each test, because the log can never be
 emptied.
 
+### PHP is 8.5.12 or later, and upload progress is off
+
+PHP 8.5.12 (2026-10-21) fixes CVE-2026-109618 and CVE-2026-109619, both unauthenticated remote code execution
+that a multipart request reaches before any application code runs; the advisories name FrankenPHP as likely
+susceptible. Review had PHP 8.5.9 through php-runtime, on FrankenPHP 1.12.7. `docker/php-runtime.Dockerfile`
+starts from `dunglas/frankenphp:1.13.1-php8.5.12-trixie` and refuses to build on a PHP below 8.5.12. The PECL
+extensions are pinned to what the earlier runtime carried, grpc 1.84.0 and protobuf 5.36.1, so the rebuild
+moves PHP and FrankenPHP only; a newer ext-grpc is a decision of its own (see the lock above).
+
+`docker/php-hardening.ini` turns `session.upload_progress.enabled` off, as CVE-2026-109619's advisory advises
+for anyone who does not use it after patching: it runs before the application on every multipart request, needs
+no `session_start()`, and review takes JSON only and never uses PHP's own sessions. The final stage refuses to
+build if it is on.
+
 ### The final stage is never taken from the build cache
 
 The final stage runs `apt-get upgrade` on the pinned php-runtime, so the image carries Debian's security fixes

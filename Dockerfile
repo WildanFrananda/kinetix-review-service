@@ -1,40 +1,11 @@
-# Review's image: FrankenPHP in worker mode.
-#
-# Two rewrites happened here. The first replaced `php artisan serve` — PHP's single-request
-# development server — with nginx + PHP-FPM, and added the PECL grpc extension, without which
-# AppServiceProvider could not resolve OrderClientInterface or IdentityClientInterface at all
-# (`Class "Grpc\ChannelCredentials" not found`: the composer package ships PHP stubs, the
-# transport lives in the extension).
-#
-# This is the second: FrankenPHP with Octane worker mode, chosen for the performance the worker
-# model actually buys — Laravel is bootstrapped once and reused, and the gRPC channels to
-# identity and order survive between requests instead of paying a TCP + HTTP/2 handshake on
-# every call. Classic mode would have performed like FPM; the gain is the worker, not the server.
-#
-# Worker mode is safe here not because nothing is shared but because nothing shared holds request
-# state. Two bindings in AppServiceProvider are `singleton` on purpose — the order gRPC client and
-# the token verifier — and the order client is additionally warmed in config/octane.php, so it
-# survives Octane's per-request container clone instead of living one request. That sharing is the
-# point twice over: it is what reuses the HTTP/2 channel, and it is what lets the circuit breaker
-# inside GrpcOrderClient accumulate failures instead of resetting before it could ever open.
-# Neither object stores anything belonging to a caller, and nothing injects Request into a
-# constructor. Do not "fix" these back to `bind`.
-
 FROM composer:2@sha256:d020706319701a44468968321dccd0fce6620190159a7a9ec195d78e6e971c71 AS vendor
 
 WORKDIR /app
 
 COPY composer.json composer.lock ./
 
-# The generated protobuf classes are on the classmap, so they must exist before the first
-# `composer install` builds an optimized autoloader — without them it fails outright with
-# "Could not scan for classes inside generated/". Copied here rather than moved into the later
-# `COPY . .` so the dependency layer still caches on composer.json alone.
 COPY bin ./bin
 
-# The wire contracts and the PHP classes generated from them. Fetched and generated rather than
-# committed: this repository tracks no .proto, which is what S9 measures.
-# apk, not apt-get: the vendor stage is composer:2, which is Alpine.
 RUN apk add --no-cache git protobuf protobuf-dev \
   && sh bin/sync-contracts \
   && mkdir -p generated \
@@ -43,8 +14,6 @@ RUN apk add --no-cache git protobuf protobuf-dev \
        .contracts/proto/review/v1/review.proto \
   && apk del protobuf protobuf-dev
 
-# The two hand-written stubs: `grpc_php_plugin` and RoadRunner's `protoc-gen-php-grpc` are separate
-# binaries, and what they would generate is a fifteen-line client and a three-line interface.
 COPY generated/Order/V1/OrderServiceClient.php ./generated/Order/V1/OrderServiceClient.php
 COPY generated/Review/V1/ReviewEvidenceServiceInterface.php ./generated/Review/V1/ReviewEvidenceServiceInterface.php
 
@@ -67,9 +36,6 @@ RUN rm -rf rr bootstrap/cache/packages.php bootstrap/cache/services.php \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php
 
-# review-grpc's server: RoadRunner composed from its plugins with two of ours, kinetix_calls and
-# kinetix_peers, which counts every call and refuses any peer the allow list does not grant. RoadRunner
-# hands PHP no client certificate, so the SPIFFE check has to live in Go. Same Go as the notary's image.
 FROM golang:1.26-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS rr
 
 WORKDIR /src
@@ -82,31 +48,15 @@ COPY rr/ ./
 
 RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/rr .
 
-# The PHP runtime — FrankenPHP plus grpc, protobuf, pdo_pgsql and pcntl — is built by
-# docker/php-runtime.Dockerfile and published by .github/workflows/php-runtime.yml. Pinned by digest:
-# a tag is a moving pointer, and the extension set is exactly the thing that must not move
-# under a service without somebody deciding it should.
-#
-# This digest is a manifest list covering linux/amd64 and linux/arm64. The GitLab image it replaces
-# was built by hand on a MacBook and so carried arm64 alone, which is why every CI build here died on
-# "no match for platform in manifest" while the same build worked on the laptop.
 FROM ghcr.io/wildanfrananda/kinetix-review-php-runtime@sha256:6fa0dfc7d80a06b09d63761ba636d11728ba530f33beebe39035d6ffdfd6a97f AS final
 
-# Security updates for the OS packages the base image carries. Pinning php-runtime by digest freezes
-# its apt packages at whatever the day of the base build shipped, and the scan failed on twelve
-# CRITICALs that were all one thing: perl, perl-base, perl-modules and libperl5.40 at 5.40.1-6 against
-# a fixed 5.40.1-6+deb13u1.
-#
-# Here rather than in docker/php-runtime.Dockerfile, deliberately. That image is rebuilt only when its
-# own Dockerfile changes — months apart — so patching there would be as stale as the pin. This image is
-# rebuilt on every merge, so the packages are as fresh as the last deploy. The digest pin still decides
-# *what* the image is; this only moves it forward on published security fixes.
 RUN set -eux; \
     apt-get update; \
     apt-get upgrade -y --no-install-recommends; \
     rm -rf /var/lib/apt/lists/*
 
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
+COPY docker/php-hardening.ini /usr/local/etc/php/conf.d/zz-hardening.ini
 
 WORKDIR /app
 
@@ -114,24 +64,6 @@ COPY --from=vendor /app /app
 
 COPY --from=rr /out/rr /usr/local/bin/rr
 
-# The writable directories Laravel expects. They are NOT copied in: .dockerignore excludes
-# storage/logs/ and storage/framework/cache/ so a host log file never reaches a distributable
-# layer, and git does not track empty directories either, so nothing recreates them. Without
-# storage/logs the container did not start at all — `octane:start` writes its server state file
-# there before it starts anything, and died on "Unable to write to process ID file", exit 1,
-# every single time. Created here rather than left to the framework because that write happens
-# before any code that would make the directory.
-#
-# storage/framework/metrics is the third of them and holds the one file every FrankenPHP worker
-# in this container adds its counts to — see App\Observability\FileMetricStore. Same reason: the
-# first write happens before any code that would make the directory, and a worker that cannot
-# write it drops the counts and says so on /metrics rather than reporting quiet zeroes.
-#
-# Prove the install actually arrived. `artisan --version` is not used: it boots the framework
-# and would demand the very credentials this image must not contain.
-# Each assertion says what was missing. `test -f` is silent when it fails, so the chain these four
-# used to form reported a bare non-zero exit with no output at all — the build said only that
-# Dockerfile:98 failed, and which of the four was anyone's guess.
 RUN set -eu; \
     mkdir -p storage/logs storage/framework/cache/data storage/framework/metrics; \
     for f in vendor/autoload.php bootstrap/cache/packages.php public/frankenphp-worker.php grpc-worker.php .rr.yaml \
@@ -139,10 +71,10 @@ RUN set -eu; \
       test -f "$f" || { echo "missing from the image: $f"; exit 1; }; \
     done; \
     php -r 'require "vendor/autoload.php"; exit(class_exists("Laravel\\Octane\\OctaneServiceProvider") ? 0 : 1);' \
-      || { echo "vendor/autoload.php loads but Laravel\\Octane\\OctaneServiceProvider is not on the classmap"; exit 1; }
+      || { echo "vendor/autoload.php loads but Laravel\\Octane\\OctaneServiceProvider is not on the classmap"; exit 1; }; \
+    php -r 'exit(ini_get("session.upload_progress.enabled") ? 1 : 0);' \
+      || { echo "session.upload_progress.enabled is on"; exit 1; }
 
-# Explicit at runtime as well as in config: the two should never disagree, and this is the one
-# a reader checks first.
 ENV OCTANE_SERVER=frankenphp
 ENV PORT=8002
 EXPOSE 8002
@@ -157,26 +89,6 @@ USER kinetix
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8002/api/health/ready > /dev/null || exit 1
 
-# --max-requests recycles a worker after 500 requests. Review has no known leak, but a worker
-# that lives forever turns any future slow leak into an outage rather than a blip.
-#
-# artisan is PID 1 on purpose, so that docker's SIGTERM reaches the process that owns the server.
-# Octane's own handler stops the server and exits; App\Console\OctaneServerExitWait, installed
-# from AppServiceProvider, holds PID 1 open until the FrankenPHP child has actually gone, so the
-# container is not torn down mid-shutdown. What finishes in-flight requests is Caddy's
-# grace_period, set in config/octane.php — not that hook.
-# A shell wrapper that trapped the signal instead was tried and dropped: it needs a second
-# process and a wait loop to do what a shutdown function does in one hook.
-#
-# --log-level is load-bearing for the logs, not for their verbosity. What it changes is
-# StartFrankenPhpCommand::writeServerOutput(), which forwards the server's stderr verbatim when
-# the flag is set and otherwise json_decodes every line looking for Caddy's own `msg` key —
-# printing "unknown error" in place of each of this application's JSON log lines.
-#
-# It does move Caddy's own verbosity, and in the lab it moves it DOWN. StartFrankenPhpCommand
-# computes CADDY_SERVER_LOG_LEVEL as --log-level ?: (local ? INFO : WARN), and compose sets
-# APP_ENV=local for this service, so WARN here is quieter than the INFO it would otherwise get.
-# Outside a local environment WARN is what it was already.
 CMD ["php", "artisan", "octane:start", \
      "--server=frankenphp", \
      "--host=0.0.0.0", \
