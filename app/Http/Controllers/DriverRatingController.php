@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\AuthenticateIdentityToken;
+use App\Observability\RequestId;
 use App\Services\DriverRatingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class DriverRatingController extends Controller {
                 [
                     "error" => "UNPROCESSABLE_ENTITY",
                     "message" => $ex->getMessage(),
+                    "traceId" => RequestId::current() ?? "-",
                 ],
                 422
             );

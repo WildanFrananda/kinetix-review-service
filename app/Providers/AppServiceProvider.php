@@ -27,7 +27,14 @@ class AppServiceProvider extends ServiceProvider {
         $this->app->bind(ProductReviewRepositoryInterface::class, EloquentProductReviewRepository::class);
         $this->app->bind(DriverRatingRepositoryInterface::class, EloquentDriverRatingRepository::class);
         $this->app->bind(ReviewEvidenceRepositoryInterface::class, EloquentReviewEvidenceRepository::class);
-        $this->app->singleton(OrderClientInterface::class, GrpcOrderClient::class);
+
+        $this->app->singleton(OrderClientInterface::class, static function (Application $app): OrderClientInterface {
+            return new GrpcOrderClient(
+                $app->make(MetricsRegistry::class),
+                self::configured("services.order_service.grpc_url", "ORDER_SERVICE_GRPC_URL")
+            );
+        });
+
         $this->app->singleton(MetricStoreInterface::class, static function (): MetricStoreInterface {
             return new FileMetricStore((string) config("metrics.store_file"));
         });
@@ -51,6 +58,15 @@ class AppServiceProvider extends ServiceProvider {
 
     private static function required(string $name): string {
         $value = env($name);
+        if (! is_string($value) || $value === "") {
+            throw new RuntimeException("{$name} is required and has no default.");
+        }
+
+        return $value;
+    }
+
+    private static function configured(string $key, string $name): string {
+        $value = config($key);
         if (! is_string($value) || $value === "") {
             throw new RuntimeException("{$name} is required and has no default.");
         }

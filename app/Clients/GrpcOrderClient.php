@@ -46,13 +46,9 @@ final class GrpcOrderClient implements OrderClientInterface {
 
     public function __construct(
         private readonly MetricsRegistry $metrics,
-        string $hostname = "",
+        string $hostname,
         ?ChannelCredentials $credentials = null
     ) {
-        if ($hostname === "") {
-            $hostname = config("services.order_service.grpc_url", "kinetix-order-service:50055");
-        }
-
         $this->stub = (new ProcessWideLock(storage_path(self::SETUP_LOCK)))->hold(
             static function () use ($hostname, $credentials): OrderServiceClient {
                 return new OrderServiceClient(

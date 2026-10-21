@@ -18,10 +18,6 @@ return [
     ],
 
     "order_service" => [
-        "grpc_url" => env("ORDER_SERVICE_GRPC_URL", "kinetix-order-service:50055"),
-    ],
-
-    "identity_service" => [
-        "grpc_url" => env("IDENTITY_SERVICE_GRPC_URL", "kinetix-identity-service:50052"),
+        "grpc_url" => env("ORDER_SERVICE_GRPC_URL"),
     ],
 ];

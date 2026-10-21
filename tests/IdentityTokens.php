@@ -52,21 +52,33 @@ final class IdentityTokens {
     }
 
     public static function jwksClient(): ClientInterface {
-        $stack = HandlerStack::create(new MockHandler(array_fill(0, 50, new Response(
-            200,
-            ["Content-Type" => "application/json"],
-            (string) json_encode(self::jwksDocument())
-        ))));
+        $stack = HandlerStack::create(new MockHandler(array_fill(0, 50, self::jwksResponse())));
 
         return new Client(["handler" => $stack]);
     }
 
     public static function verifier(): TokenVerifier {
+        return self::verifierOver(self::jwksClient());
+    }
+
+    public static function jwksResponse(): Response {
+        return new Response(
+            200,
+            ["Content-Type" => "application/json"],
+            (string) json_encode(self::jwksDocument())
+        );
+    }
+
+    public static function verifierAnswering(MockHandler $identity): TokenVerifier {
+        return self::verifierOver(new Client(["handler" => HandlerStack::create($identity)]));
+    }
+
+    private static function verifierOver(ClientInterface $http): TokenVerifier {
         return new TokenVerifier(
             (string) env("JWT_ISSUER"),
             (string) env("JWT_AUDIENCE"),
             "http://identity.test/.well-known/jwks.json",
-            self::jwksClient()
+            $http
         );
     }
 

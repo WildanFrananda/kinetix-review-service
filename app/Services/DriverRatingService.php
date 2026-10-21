@@ -26,6 +26,10 @@ class DriverRatingService {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }
 
+        if ($order->driverPrincipalId === $caller->principalId) {
+            throw new InvalidArgumentException("A courier cannot rate its own delivery.");
+        }
+
         if (! $order->delivered) {
             throw new InvalidArgumentException("Driver ratings are only allowed for DELIVERED or COMPLETED orders.");
         }
