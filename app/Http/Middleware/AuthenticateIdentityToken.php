@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Observability\RequestId;
 use App\Security\AccessClaims;
 use App\Security\InvalidTokenException;
 use App\Security\TokenVerifier;
@@ -47,6 +48,13 @@ final class AuthenticateIdentityToken {
     }
 
     private function unauthorized(string $message): JsonResponse {
-        return response()->json(["error" => "UNAUTHORIZED", "message" => $message], 401);
+        return response()->json(
+            [
+                "error" => "UNAUTHORIZED",
+                "message" => $message,
+                "traceId" => RequestId::current() ?? "-",
+            ],
+            401
+        );
     }
 }

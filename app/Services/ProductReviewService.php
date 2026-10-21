@@ -26,6 +26,10 @@ class ProductReviewService {
             throw new InvalidArgumentException("Order does not belong to this customer.");
         }
 
+        if ($order->merchantPrincipalId === $caller->principalId) {
+            throw new InvalidArgumentException("A merchant cannot review its own product.");
+        }
+
         if (! $order->delivered) {
             throw new InvalidArgumentException("Reviews are only allowed for DELIVERED or COMPLETED orders.");
         }

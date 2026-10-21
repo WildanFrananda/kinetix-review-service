@@ -120,6 +120,36 @@ it("rejects a rating for an order that records no courier", function () {
     $this->assertDatabaseCount("driver_ratings", 0);
 });
 
+it("refuses a courier's rating of its own delivery", function () {
+    $this->fakeOrderClient->addOrder(
+        ratedOrder(
+            "ORD-SELF-001",
+            "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
+            true,
+            "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914"
+        )
+    );
+
+    $response = $this->withHeaders([
+        ...IdentityTokens::bearer(["sub" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914", "role" => "driver"]),
+        "X-Request-Id" => "req-self-rating",
+    ])->postJson(
+        "/api/v1/reviews/drivers",
+        [
+            "order_id" => "ORD-SELF-001",
+            "rating" => 5,
+        ]
+    );
+
+    $response->assertStatus(422)->assertJson([
+        "error" => "UNPROCESSABLE_ENTITY",
+        "message" => "A courier cannot rate its own delivery.",
+        "traceId" => "req-self-rating",
+    ]);
+    $this->assertDatabaseCount("driver_ratings", 0);
+    $this->assertDatabaseCount("review_evidence", 0);
+});
+
 it("rates the courier who delivered the order, attributed to the token's account", function () {
     $this->fakeOrderClient->addOrder(ratedOrder("ORD-DELIVERED-001"));
 

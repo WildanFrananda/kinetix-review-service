@@ -57,6 +57,13 @@ merchant. Order sends `merchant_principal_id` and `driver_principal_id` from kin
 courier is the one order recorded as having delivered, so a rating for an order with no courier on record
 is refused.
 
+### Nobody reviews themselves
+
+A buyer whose principal is the order's `merchant_principal_id` cannot review the product, and one whose
+principal is the order's `driver_principal_id` cannot rate the courier: both are 422 (user ruling O-12,
+2026-10-21). Order is to refuse such a cart line too; review checks on its own, because orders placed before
+that exist. An order with no merchant on record cannot be told apart, and its review is filed with none.
+
 ### Delivered is read from the enum value, not its name
 
 `GrpcOrderClient` compares the status with `OrderStatus::ORDER_STATUS_DELIVERED` and `ORDER_STATUS_COMPLETED`.
@@ -70,6 +77,33 @@ that reason; a fake that skips the mapping cannot catch it.
 `customer_principal_id` and `order_id` are `$hidden` on both models, because the listing routes take no
 token. A second review of the same product from the same order, or a second rating of the same order's
 courier, is a 409 from the unique index, not a 500.
+
+### Every error on `api/*` is rendered in `bootstrap/app.php`
+
+The render callback takes every `Throwable`, and Laravel runs render callbacks before its own branches for
+`HttpResponseException`, `AuthenticationException` and `ValidationException` (`Handler::render`), so the
+callback handles all three: a thrown response is sent as it is (the callback returns null and Laravel sends it;
+a route's own is caught earlier, in `Route::run`, but a middleware's, such as a throttle's, is not), an
+`AuthenticationException` is 401 `UNAUTHORIZED`, and validation is 422 `VALIDATION_FAILED` with `errors` per
+field. Without those branches each was a 500 logged as unhandled. The framework exceptions Laravel maps first
+(`ModelNotFoundException`, `AuthorizationException`, `TokenMismatchException`, a Symfony request exception)
+arrive as `HttpExceptionInterface` and keep their status; anything else is a 500 and is logged.
+
+### A JWKS outage is 503, never 401
+
+`TokenVerifier` hands `CachedKeySet` an `IdentityKeysClient`, which throws `IdentityKeysUnavailableException`
+(503) when identity cannot be reached, answers other than 200, or answers a document with no keys. Past the
+library a non-200 is an `UnexpectedValueException`, the type it also throws for a malformed token, so the
+verifier cannot tell them apart after the fact. Its rate limit (ten fetches a minute) then answers "Key ID not
+found" without asking anyone, so a failed fetch is remembered in the cache until one succeeds, and "Key ID not
+found" is 503 while it is. Keys already cached keep verifying through an outage. The cache goes through
+Symfony's PSR-6 adapter, which swallows store errors: a database outage must not turn into a 401 either.
+
+### ORDER_SERVICE_GRPC_URL has no default
+
+`config/services.php` reads it with no fallback, and the binding of `OrderClientInterface` refuses to build
+without it. Octane warms that binding, so the HTTP process fails as its workers boot rather than on the first
+review. review-grpc and the migrator never build the order client and do not read it.
 
 ### generated/ follows the pinned contract
 

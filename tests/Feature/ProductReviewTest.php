@@ -43,6 +43,30 @@ it("refuses a request carrying no token", function () {
     $response->assertStatus(401)->assertJson(["error" => "UNAUTHORIZED"]);
 });
 
+it("answers 401 in the house shape, with the request's trace id", function (?string $tokenUse) {
+    $token = $tokenUse === null ? [] : IdentityTokens::bearer(["token_use" => $tokenUse]);
+
+    $response = $this->withHeaders([...$token, "X-Request-Id" => "req-unauthorized"])
+        ->postJson(
+            "/api/v1/reviews/products",
+            [
+                "order_id" => "ORD-TEST-001",
+                "product_id" => "TSHIRT-BLK-M",
+                "rating" => 5,
+            ]
+        );
+
+    $response->assertStatus(401)
+        ->assertJson([
+            "error" => "UNAUTHORIZED",
+            "traceId" => "req-unauthorized",
+        ])
+        ->assertJsonStructure(["message"]);
+})->with([
+    "no token" => [null],
+    "a refresh token" => ["refresh"],
+]);
+
 it("refuses a request carrying only an X-User-Id header", function () {
     $response = $this->withHeader("X-User-Id", "1001")
         ->postJson(
@@ -210,6 +234,39 @@ it("rejects a review for a product the order does not contain", function () {
         );
 
     $response->assertStatus(422)->assertJson(["error" => "UNPROCESSABLE_ENTITY"]);
+});
+
+it("refuses a merchant's review of its own product, whatever the order says it bought", function () {
+    $this->fakeOrderClient->addOrder(
+        new OrderDetails(
+            "ORD-SELF-001",
+            "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
+            "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
+            "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
+            true,
+            ["TSHIRT-BLK-M"]
+        )
+    );
+
+    $response = $this->withHeaders([
+        ...IdentityTokens::bearer(["sub" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3", "role" => "merchant"]),
+        "X-Request-Id" => "req-self-review",
+    ])->postJson(
+        "/api/v1/reviews/products",
+        [
+            "order_id" => "ORD-SELF-001",
+            "product_id" => "TSHIRT-BLK-M",
+            "rating" => 5,
+        ]
+    );
+
+    $response->assertStatus(422)->assertJson([
+        "error" => "UNPROCESSABLE_ENTITY",
+        "message" => "A merchant cannot review its own product.",
+        "traceId" => "req-self-review",
+    ]);
+    $this->assertDatabaseCount("product_reviews", 0);
+    $this->assertDatabaseCount("review_evidence", 0);
 });
 
 it("creates a review for the order's merchant, attributed to the token's account", function () {
