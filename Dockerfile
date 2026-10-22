@@ -48,7 +48,7 @@ COPY rr/ ./
 
 RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/rr .
 
-FROM ghcr.io/wildanfrananda/kinetix-review-php-runtime@sha256:6fa0dfc7d80a06b09d63761ba636d11728ba530f33beebe39035d6ffdfd6a97f AS final
+FROM ghcr.io/wildanfrananda/kinetix-review-php-runtime@sha256:457296f75eabfa2765567792509ed04e85ddc2d40c9b13a1ca3361a3368f110d AS final
 
 RUN set -eux; \
     apt-get update; \

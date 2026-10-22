@@ -199,7 +199,8 @@ moves PHP and FrankenPHP only; a newer ext-grpc is a decision of its own (see th
 `docker/php-hardening.ini` turns `session.upload_progress.enabled` off, as CVE-2026-109619's advisory advises
 for anyone who does not use it after patching: it runs before the application on every multipart request, needs
 no `session_start()`, and review takes JSON only and never uses PHP's own sessions. The final stage refuses to
-build if it is on.
+build if it is on. The same file sets `expose_php` off, so no response names the PHP version an attacker would
+look for.
 
 ### The final stage is never taken from the build cache
 
