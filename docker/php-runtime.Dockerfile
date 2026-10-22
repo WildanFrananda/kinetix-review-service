@@ -1,4 +1,4 @@
-FROM dunglas/frankenphp:1.13.1-php8.5.12-trixie@sha256:55c63014b845d24c3986b72ce7fdd1bdbb3c9219a1ecdc37bf828c7f038e6f1a
+FROM dunglas/frankenphp:1.13.2-php8.5.12-trixie@sha256:8a7a935deb33959200628497b8201423c8b777d513a62ac1b69a91c624afdb3d
 
 RUN set -eux; \
     apt-get update; \
@@ -21,6 +21,8 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 RUN php -r 'exit(version_compare(PHP_VERSION, "8.5.12", ">=") ? 0 : 1);' \
+    && frankenphp_version="$(frankenphp version | cut -d' ' -f2)" \
+    && [ "$(printf '%s\n' v1.13.2 "$frankenphp_version" | sort -V | head -n1)" = v1.13.2 ] \
     && php -r 'exit(extension_loaded("grpc") && extension_loaded("protobuf") ? 0 : 1);' \
     && php -r 'exit(class_exists("Grpc\\ChannelCredentials") ? 0 : 1);' \
     && php -r 'exit(extension_loaded("pcntl") && defined("SIGINT") ? 0 : 1);' \
