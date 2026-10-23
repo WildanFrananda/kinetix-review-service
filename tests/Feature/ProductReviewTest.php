@@ -6,6 +6,7 @@ use App\Clients\OrderDetails;
 use App\Contracts\Clients\OrderClientInterface;
 use App\Security\TokenVerifier;
 use Firebase\JWT\JWT;
+use Illuminate\Support\Facades\DB;
 use Tests\FakeOrderClient;
 use Tests\IdentityTokens;
 
@@ -346,6 +347,58 @@ it("refuses a second review of the same product from the same order", function (
 
     $response->assertStatus(409)->assertJson(["error" => "REQUEST_REFUSED"]);
     $this->assertDatabaseCount("product_reviews", 1);
+});
+
+it("names the review already written in the 409, so an author who lost the 201 can find it", function () {
+    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $review = [
+        "order_id" => "ORD-DELIVERED-001",
+        "product_id" => "TSHIRT-BLK-M",
+        "rating" => 5,
+    ];
+    $created = $this->withHeaders(IdentityTokens::bearer())->postJson("/api/v1/reviews/products", $review);
+
+    $response = $this->withHeaders([...IdentityTokens::bearer(), "X-Request-Id" => "req-reviewed-twice"])
+        ->postJson("/api/v1/reviews/products", [...$review, "rating" => 1]);
+
+    $response->assertStatus(409)->assertExactJson([
+        "error" => "REQUEST_REFUSED",
+        "message" => "this product from this order has already been reviewed. Nothing was saved.",
+        "review_id" => $created->json("id"),
+        "traceId" => "req-reviewed-twice",
+    ]);
+    $this->assertDatabaseHas("product_reviews", ["id" => $created->json("id"), "rating" => 5]);
+});
+
+it("names no review in the 409 when the review already there is not the caller's", function () {
+    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    DB::table("product_reviews")->insert([
+        "id" => "6a1f0c2e-8b3d-4e5f-9a7b-1c2d3e4f5a6b",
+        "order_id" => "ORD-DELIVERED-001",
+        "customer_principal_id" => "22222222-0000-0000-0000-000000000000",
+        "product_id" => "TSHIRT-BLK-M",
+        "merchant_principal_id" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
+        "rating" => 3,
+        "created_at" => now(),
+        "updated_at" => now(),
+    ]);
+
+    $response = $this->withHeaders([...IdentityTokens::bearer(), "X-Request-Id" => "req-not-the-author"])
+        ->postJson(
+            "/api/v1/reviews/products",
+            [
+                "order_id" => "ORD-DELIVERED-001",
+                "product_id" => "TSHIRT-BLK-M",
+                "rating" => 5,
+            ]
+        );
+
+    $response->assertStatus(409)->assertExactJson([
+        "error" => "REQUEST_REFUSED",
+        "message" => "this product from this order has already been reviewed. Nothing was saved.",
+        "review_id" => null,
+        "traceId" => "req-not-the-author",
+    ]);
 });
 
 it("reads a product's reviews without a token, and without saying who wrote them", function () {

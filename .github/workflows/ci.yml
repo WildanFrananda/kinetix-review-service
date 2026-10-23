@@ -36,6 +36,7 @@ jobs:
           --health-cmd="pg_isready -U ci"
           --health-interval=10s --health-timeout=5s --health-retries=5
     env:
+      APP_ENV: testing
       DB_HOST: postgres
       DB_PORT: "5432"
     steps:

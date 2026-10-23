@@ -15,13 +15,14 @@ class EloquentDriverRatingRepository implements DriverRatingRepositoryInterface 
         try {
             return DB::transaction(fn (): DriverRating => DriverRating::create($data));
         } catch (UniqueConstraintViolationException $ex) {
-            throw AlreadyReviewedException::driver($ex);
+            throw AlreadyReviewedException::driver($this->authorsRatingId($data), $ex);
         }
     }
 
     public function getPaginatedByDriverId(string $driverPrincipalId, int $perPage = 15): LengthAwarePaginator {
         return DriverRating::where("driver_principal_id", $driverPrincipalId)
             ->latest()
+            ->orderByDesc("id")
             ->paginate($perPage);
     }
 
@@ -33,5 +34,14 @@ class EloquentDriverRatingRepository implements DriverRatingRepositoryInterface 
 
     public function getTotalCountByDriverId(string $driverPrincipalId): int {
         return DriverRating::where("driver_principal_id", $driverPrincipalId)->count();
+    }
+
+    private function authorsRatingId(array $data): ?string {
+        $id = DriverRating::where("order_id", $data["order_id"])
+            ->where("driver_principal_id", $data["driver_principal_id"])
+            ->where("customer_principal_id", $data["customer_principal_id"])
+            ->value("id");
+
+        return $id === null ? null : (string) $id;
     }
 }

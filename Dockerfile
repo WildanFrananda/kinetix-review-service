@@ -30,9 +30,7 @@ COPY . .
 
 RUN rm -rf rr bootstrap/cache/packages.php bootstrap/cache/services.php \
     && composer dump-autoload --no-dev --optimize --classmap-authoritative --no-scripts \
-    && DB_USERNAME=build-time-placeholder \
-       DB_PASSWORD=build-time-placeholder \
-       php artisan package:discover --ansi \
+    && DB_CONNECTION=build-time-placeholder php artisan package:discover --ansi \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php
 
