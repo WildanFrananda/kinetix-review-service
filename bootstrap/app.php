@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use App\Http\Middleware\HttpMetrics;
 use App\Http\Middleware\RequestId as RequestIdMiddleware;
+use App\Logging\FailureLogContext;
 use App\Observability\RequestId;
+use App\Repositories\AlreadyReviewedException;
+use App\Resilience\DatabaseOutage;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -27,12 +30,31 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend([HttpMetrics::class, RequestIdMiddleware::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is("api/*") || $request->expectsJson(),
-        );
+        $answersJson = static fn (Request $request): bool => $request->is("api/*") || $request->expectsJson();
 
-        $exceptions->render(function (Throwable $e, Request $request): ?JsonResponse {
-            if (! $request->is("api/*") && ! $request->expectsJson()) {
+        $exceptions->shouldRenderJsonWhen($answersJson);
+
+        $exceptions->dontReportWhen(fn (Throwable $e): bool => (new DatabaseOutage)->causedBy($e));
+
+        $exceptions->report(function (Throwable $e) use ($answersJson): bool {
+            $request = app()->bound("request") ? app("request") : null;
+            if (! $request instanceof Request || ! $answersJson($request)) {
+                return true;
+            }
+
+            Log::error(
+                "unhandled exception serving {$request->method()} {$request->path()}",
+                [
+                    ...FailureLogContext::of($e),
+                    "request_id" => RequestId::current() ?? "-",
+                ]
+            );
+
+            return false;
+        });
+
+        $exceptions->render(function (Throwable $e, Request $request) use ($answersJson): ?JsonResponse {
+            if (! $answersJson($request)) {
                 return null;
             }
 
@@ -63,6 +85,18 @@ return Application::configure(basePath: dirname(__DIR__))
                 );
             }
 
+            if ($e instanceof AlreadyReviewedException) {
+                return new JsonResponse(
+                    [
+                        "error" => "REQUEST_REFUSED",
+                        "message" => $e->getMessage(),
+                        "review_id" => $e->reviewId,
+                        "traceId" => RequestId::current() ?? "-",
+                    ],
+                    409
+                );
+            }
+
             if ($e instanceof HttpExceptionInterface) {
                 return new JsonResponse(
                     [
@@ -75,14 +109,25 @@ return Application::configure(basePath: dirname(__DIR__))
                 );
             }
 
-            Log::error(
-                "unhandled exception serving {$request->method()} {$request->path()}",
-                [
-                    "exception" => $e::class,
-                    "message" => $e->getMessage(),
-                    "request_id" => RequestId::current() ?? "-",
-                ]
-            );
+            if ((new DatabaseOutage)->causedBy($e)) {
+                Log::warning(
+                    "review's database could not be reached serving {$request->method()} {$request->path()}",
+                    [
+                        "reason" => DatabaseOutage::reason($e),
+                        "request_id" => RequestId::current() ?? "-",
+                    ]
+                );
+
+                return new JsonResponse(
+                    [
+                        "error" => "SERVICE_UNAVAILABLE",
+                        "message" => "the review database could not be reached, so this request could not be "
+                            . "completed. Try again later.",
+                        "traceId" => RequestId::current() ?? "-",
+                    ],
+                    503
+                );
+            }
 
             return new JsonResponse(
                 [

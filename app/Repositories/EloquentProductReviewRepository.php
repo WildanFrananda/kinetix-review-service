@@ -15,13 +15,14 @@ class EloquentProductReviewRepository implements ProductReviewRepositoryInterfac
         try {
             return DB::transaction(fn (): ProductReview => ProductReview::create($data));
         } catch (UniqueConstraintViolationException $ex) {
-            throw AlreadyReviewedException::product($ex);
+            throw AlreadyReviewedException::product($this->authorsReviewId($data), $ex);
         }
     }
 
     public function getPaginatedByProductId(string $productId, int $perPage = 15): LengthAwarePaginator {
         return ProductReview::where("product_id", $productId)
             ->latest()
+            ->orderByDesc("id")
             ->paginate($perPage);
     }
 
@@ -38,6 +39,7 @@ class EloquentProductReviewRepository implements ProductReviewRepositoryInterfac
     public function getPaginatedByMerchantId(string $merchantPrincipalId, int $perPage = 15): LengthAwarePaginator {
         return ProductReview::where("merchant_principal_id", $merchantPrincipalId)
             ->latest()
+            ->orderByDesc("id")
             ->paginate($perPage);
     }
 
@@ -49,5 +51,14 @@ class EloquentProductReviewRepository implements ProductReviewRepositoryInterfac
 
     public function getTotalCountByMerchantId(string $merchantPrincipalId): int {
         return ProductReview::where("merchant_principal_id", $merchantPrincipalId)->count();
+    }
+
+    private function authorsReviewId(array $data): ?string {
+        $id = ProductReview::where("order_id", $data["order_id"])
+            ->where("product_id", $data["product_id"])
+            ->where("customer_principal_id", $data["customer_principal_id"])
+            ->value("id");
+
+        return $id === null ? null : (string) $id;
     }
 }

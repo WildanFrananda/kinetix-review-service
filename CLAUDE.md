@@ -78,6 +78,11 @@ that reason; a fake that skips the mapping cannot catch it.
 token. A second review of the same product from the same order, or a second rating of the same order's
 courier, is a 409 from the unique index, not a 500.
 
+The 409 carries `review_id`, the id of the review already there, so an author whose 201 was lost can still
+name its review in the notary's review evidence; the listings cannot tell it which one is theirs. The lookup
+matches the order, the product (or the courier) and the caller's principal, so it names only the caller's own
+review: the caller owns the order by construction, and `review_id` is null in the case that cannot happen.
+
 ### Every error on `api/*` is rendered in `bootstrap/app.php`
 
 The render callback takes every `Throwable`, and Laravel runs render callbacks before its own branches for
@@ -87,7 +92,56 @@ a route's own is caught earlier, in `Route::run`, but a middleware's, such as a 
 `AuthenticationException` is 401 `UNAUTHORIZED`, and validation is 422 `VALIDATION_FAILED` with `errors` per
 field. Without those branches each was a 500 logged as unhandled. The framework exceptions Laravel maps first
 (`ModelNotFoundException`, `AuthorizationException`, `TokenMismatchException`, a Symfony request exception)
-arrive as `HttpExceptionInterface` and keep their status; anything else is a 500 and is logged.
+arrive as `HttpExceptionInterface` and keep their status; a database outage is a 503 (below); anything else is
+a 500, logged once (below).
+
+### A 500 is logged once, and never with the query's values
+
+Laravel reports an exception before it renders it, and its reporter logs the exception's message and the
+exception itself. A `QueryException`'s message interpolates the bindings into its SQL (a buyer's comment, the
+principals, the order), and the driver's own message quotes the refused row in its `DETAIL`. So on a JSON request
+the report callback in `bootstrap/app.php` writes the only line, from `App\Logging\FailureLogContext`: the
+exception's class and, for a database error anywhere in its chain, the SQLSTATE and the SQL with its
+placeholders, no message at all; for any other failure its message as `reason`. It returns false, which stops
+Laravel's own line, and the render callback logs nothing for a 500. `JsonLineFormatter` drops a context key named
+`message`, so a `message` there never reached the log. Outside a JSON request (the migrator, review-grpc's
+worker) Laravel's reporter logs as it always did.
+
+### The database settings have no defaults
+
+`config/database.php` requires `DB_CONNECTION`, and `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and
+`DB_PASSWORD` while the connection is `pgsql`, through `App\Configuration\RequiredEnvironment`: every process
+refuses to start without one, naming it. Until 2026-10-23 an unset `DB_CONNECTION` chose SQLite and skipped every
+Postgres check. The connections review never uses keep Laravel's defaults. `package:discover` loads the
+configuration and opens no connection: the image build gives it `DB_CONNECTION=build-time-placeholder`, and both
+CIs set `APP_ENV=testing`, so the discovery `composer install` runs reads `.env.testing`.
+
+### A database outage is 503, and only an outage
+
+`App\Resilience\DatabaseOutage` decides from the driver's error, never from the `QueryException`'s text, which
+carries the SQL and its bindings: SQLSTATE class 08 (pdo_pgsql reports every failed connect as 08006), 57P01 to
+57P03 (the server ended the session, crashed, or is starting or stopping), or an error with no server SQLSTATE
+(HY000) that Laravel's own lost-connection list recognises; `LostConnectionException` too. A refusal the server
+gives with its own SQLSTATE (a constraint, a missing table, a bad value) stays a logged 500, whatever its text
+says. The render callback answers 503 `SERVICE_UNAVAILABLE` with a fixed message and logs one warning whose
+`reason` is the driver's message. `dontReportWhen` keeps Laravel from reporting it again as unhandled, so a
+console command that fails on an outage (the migrator) prints it in its own output and writes nothing to the log
+channel.
+
+### A rating is a JSON integer
+
+The rule is `integer:strict`. The loose `integer` passes whatever `filter_var(..., FILTER_VALIDATE_INT)` takes,
+which reads `true` as 1, `4.0` as 4 and `"5"` as 5, so `"rating": true` was saved as a one-star review. Review
+takes JSON only, and a rating is a JSON integer: a Dart `double`, which `jsonEncode` writes as `4.0`, is refused.
+
+### Listings sort on `created_at`, then `id`
+
+`created_at` is stored to the second, and Postgres returns rows that tie on the sort key in whatever order the
+plan gives, which changes with `LIMIT` and `OFFSET`: on 2026-10-23, 3000 reviews written 50 a second and paged 15
+at a time listed 2385 distinct reviews and never listed 615. Every listing therefore sorts on `id` after
+`created_at`. No index carries the order: the filter's own index narrows to one product, merchant or courier and
+a top-N heapsort orders those rows, and the tie-breaker leaves the plan as it was (a merchant with 20,000
+reviews: 5.0 ms before, 5.3 ms after).
 
 ### A JWKS outage is 503, never 401
 

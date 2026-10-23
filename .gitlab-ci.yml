@@ -31,6 +31,8 @@ stages:
 .php:
   # GHCR, and public, so this pulls with no credentials — GitLab needs no token for it.
   image: ghcr.io/wildanfrananda/kinetix-review-php-runtime:php8.5-grpc1
+  variables:
+    APP_ENV: testing
   before_script:
     # Composer, git and unzip are deliberately absent from the runtime image — it ships to production,
     # and docker/php-runtime.Dockerfile purges git after compiling the extensions. The job that needs

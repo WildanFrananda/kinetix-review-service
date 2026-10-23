@@ -21,7 +21,7 @@ class DriverRatingController extends Controller {
 
         $validated = $request->validate([
             "order_id" => ["required", "string"],
-            "rating" => ["required", "integer", "min:1", "max:5"],
+            "rating" => ["required", "integer:strict", "min:1", "max:5"],
             "comment" => ["nullable", "string", "max:1000"],
         ]);
 

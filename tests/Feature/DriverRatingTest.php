@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Clients\OrderDetails;
 use App\Contracts\Clients\OrderClientInterface;
 use App\Security\TokenVerifier;
+use Illuminate\Support\Facades\DB;
 use Tests\FakeOrderClient;
 use Tests\IdentityTokens;
 
@@ -222,6 +223,55 @@ it("refuses a second rating of the same order's courier", function () {
 
     $response->assertStatus(409)->assertJson(["error" => "REQUEST_REFUSED"]);
     $this->assertDatabaseCount("driver_ratings", 1);
+});
+
+it("names the rating already given in the 409, so an author who lost the 201 can find it", function () {
+    $this->fakeOrderClient->addOrder(ratedOrder("ORD-DELIVERED-001"));
+    $rating = [
+        "order_id" => "ORD-DELIVERED-001",
+        "rating" => 5,
+    ];
+    $created = $this->withHeaders(IdentityTokens::bearer())->postJson("/api/v1/reviews/drivers", $rating);
+
+    $response = $this->withHeaders([...IdentityTokens::bearer(), "X-Request-Id" => "req-rated-twice"])
+        ->postJson("/api/v1/reviews/drivers", [...$rating, "rating" => 1]);
+
+    $response->assertStatus(409)->assertExactJson([
+        "error" => "REQUEST_REFUSED",
+        "message" => "the courier of this order has already been rated. Nothing was saved.",
+        "review_id" => $created->json("id"),
+        "traceId" => "req-rated-twice",
+    ]);
+    $this->assertDatabaseHas("driver_ratings", ["id" => $created->json("id"), "rating" => 5]);
+});
+
+it("names no rating in the 409 when the rating already there is not the caller's", function () {
+    $this->fakeOrderClient->addOrder(ratedOrder("ORD-DELIVERED-001"));
+    DB::table("driver_ratings")->insert([
+        "id" => "7b2a1d3f-9c4e-4f6a-8b8c-2d3e4f5a6b7c",
+        "order_id" => "ORD-DELIVERED-001",
+        "customer_principal_id" => "22222222-0000-0000-0000-000000000000",
+        "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
+        "rating" => 3,
+        "created_at" => now(),
+        "updated_at" => now(),
+    ]);
+
+    $response = $this->withHeaders([...IdentityTokens::bearer(), "X-Request-Id" => "req-not-the-author"])
+        ->postJson(
+            "/api/v1/reviews/drivers",
+            [
+                "order_id" => "ORD-DELIVERED-001",
+                "rating" => 5,
+            ]
+        );
+
+    $response->assertStatus(409)->assertExactJson([
+        "error" => "REQUEST_REFUSED",
+        "message" => "the courier of this order has already been rated. Nothing was saved.",
+        "review_id" => null,
+        "traceId" => "req-not-the-author",
+    ]);
 });
 
 it("answers 503 with a Retry-After when the breaker has stopped dialling order-service", function () {
