@@ -60,7 +60,7 @@ jobs:
           rm /tmp/composer-setup.php
           composer --version
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install dependencies
         # `.env.testing` is committed and carries everything the suite needs.
         # ext-sockets is declared by spiral/goridge for its socket relay; review-grpc's worker talks to
@@ -87,7 +87,7 @@ jobs:
       run:
         working-directory: rr
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Format
         run: |
           unformatted="$(gofmt -l .)"
@@ -98,7 +98,7 @@ jobs:
   build-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build the service image
         run: |
           test -f .dockerignore || { echo "no .dockerignore — the build context would carry .env and .git"; exit 1; }
