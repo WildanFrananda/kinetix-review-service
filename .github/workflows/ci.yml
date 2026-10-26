@@ -79,8 +79,10 @@ jobs:
   # review-grpc's RoadRunner binary: the SPIFFE allow list and the call counter it carries.
   rr:
     runs-on: ubuntu-latest
+    # The Dockerfile's `rr` stage image, by digest. Dependabot updates the Dockerfile but not an image named
+    # here, so move this line with it: on 2026-10-26 endure v2.7.0 required Go 1.27 while this stayed on 1.26.
     container:
-      image: golang:1.26-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c
+      image: golang:1.27-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5
     env:
       GOFLAGS: -buildvcs=false
     defaults:
