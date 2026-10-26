@@ -1,4 +1,4 @@
-FROM composer:2@sha256:d020706319701a44468968321dccd0fce6620190159a7a9ec195d78e6e971c71 AS vendor
+FROM composer:2@sha256:b6dcd72ca98fa19d0e5b8476de179859704891fad06dd9e0b96833d4c430a5fc AS vendor
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ RUN rm -rf rr bootstrap/cache/packages.php bootstrap/cache/services.php \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php
 
-FROM golang:1.26-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS rr
+FROM golang:1.27-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS rr
 
 WORKDIR /src
 
