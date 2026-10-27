@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Middleware\HttpMetrics;
 use App\Http\Middleware\RequestId as RequestIdMiddleware;
+use App\Http\Middleware\TrimStringsLeavingNul;
 use App\Logging\FailureLogContext;
 use App\Observability\RequestId;
 use App\Repositories\AlreadyReviewedException;
@@ -12,8 +13,10 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend([HttpMetrics::class, RequestIdMiddleware::class]);
+        $middleware->remove(HandleCors::class);
+        $middleware->replace(TrimStrings::class, TrimStringsLeavingNul::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $answersJson = static fn (Request $request): bool => $request->is("api/*") || $request->expectsJson();

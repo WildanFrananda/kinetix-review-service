@@ -13,7 +13,7 @@ beforeEach(function () {
     $orders = new FakeOrderClient;
     $orders->addOrder(
         new OrderDetails(
-            "ORD-VALIDATION-001",
+            "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08",
             "11111111-2222-3333-4444-555555555555",
             "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
             "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
@@ -43,32 +43,32 @@ it("answers 422 in the house shape, not 500, for an invalid product review", fun
     Log::shouldNotHaveReceived("error");
 })->with([
     "no rating" => [
-        ["order_id" => "ORD-VALIDATION-001", "product_id" => "TSHIRT-BLK-M"],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "product_id" => "TSHIRT-BLK-M"],
         "rating",
     ],
     "a rating of six" => [
-        ["order_id" => "ORD-VALIDATION-001", "product_id" => "TSHIRT-BLK-M", "rating" => 6],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "product_id" => "TSHIRT-BLK-M", "rating" => 6],
         "rating",
     ],
     "a rating of zero" => [
-        ["order_id" => "ORD-VALIDATION-001", "product_id" => "TSHIRT-BLK-M", "rating" => 0],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "product_id" => "TSHIRT-BLK-M", "rating" => 0],
         "rating",
     ],
     "a rating that is not a number" => [
-        ["order_id" => "ORD-VALIDATION-001", "product_id" => "TSHIRT-BLK-M", "rating" => "five"],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "product_id" => "TSHIRT-BLK-M", "rating" => "five"],
         "rating",
     ],
     "a rating of true, which a loose integer check reads as 1" => [
-        ["order_id" => "ORD-VALIDATION-001", "product_id" => "TSHIRT-BLK-M", "rating" => true],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "product_id" => "TSHIRT-BLK-M", "rating" => true],
         "rating",
     ],
     "a rating sent as the string \"5\"" => [
-        ["order_id" => "ORD-VALIDATION-001", "product_id" => "TSHIRT-BLK-M", "rating" => "5"],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "product_id" => "TSHIRT-BLK-M", "rating" => "5"],
         "rating",
     ],
     "a comment over 1000 characters" => [
         [
-            "order_id" => "ORD-VALIDATION-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08",
             "product_id" => "TSHIRT-BLK-M",
             "rating" => 5,
             "comment" => str_repeat("a", 1001),
@@ -80,7 +80,7 @@ it("answers 422 in the house shape, not 500, for an invalid product review", fun
         "order_id",
     ],
     "no product" => [
-        ["order_id" => "ORD-VALIDATION-001", "rating" => 5],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "rating" => 5],
         "product_id",
     ],
 ]);
@@ -103,23 +103,23 @@ it("answers 422 in the house shape, not 500, for an invalid driver rating", func
     Log::shouldNotHaveReceived("error");
 })->with([
     "no rating" => [
-        ["order_id" => "ORD-VALIDATION-001"],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08"],
         "rating",
     ],
     "a rating of six" => [
-        ["order_id" => "ORD-VALIDATION-001", "rating" => 6],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "rating" => 6],
         "rating",
     ],
     "a rating of true, which a loose integer check reads as 1" => [
-        ["order_id" => "ORD-VALIDATION-001", "rating" => true],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "rating" => true],
         "rating",
     ],
     "a rating sent as the string \"5\"" => [
-        ["order_id" => "ORD-VALIDATION-001", "rating" => "5"],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "rating" => "5"],
         "rating",
     ],
     "a comment over 1000 characters" => [
-        ["order_id" => "ORD-VALIDATION-001", "rating" => 5, "comment" => str_repeat("a", 1001)],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08", "rating" => 5, "comment" => str_repeat("a", 1001)],
         "comment",
     ],
     "no order" => [
@@ -140,7 +140,7 @@ it("answers 422, not 500, for a body that is not JSON at all", function () {
             "CONTENT_TYPE" => "application/json",
             "HTTP_ACCEPT" => "application/json",
         ],
-        "{\"order_id\": \"ORD-VALIDATION-001\", \"rating\": "
+        "{\"order_id\": \"5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08\", \"rating\": "
     );
 
     $response->assertStatus(422)->assertJson(["error" => "VALIDATION_FAILED"]);
@@ -159,7 +159,7 @@ it("answers 422 for a rating written as 4.0, which is a JSON number but not an i
             "CONTENT_TYPE" => "application/json",
             "HTTP_ACCEPT" => "application/json",
         ],
-        "{\"order_id\": \"ORD-VALIDATION-001\", \"product_id\": \"TSHIRT-BLK-M\", \"rating\": 4.0}"
+        "{\"order_id\": \"5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08\", \"product_id\": \"TSHIRT-BLK-M\", \"rating\": 4.0}"
     );
 
     $response->assertStatus(422)
@@ -176,7 +176,7 @@ it("still saves a review the rules accept, at the edges of what they allow", fun
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-VALIDATION-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b08",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 1,
                 "comment" => str_repeat("a", 1000),

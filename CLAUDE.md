@@ -83,6 +83,17 @@ name its review in the notary's review evidence; the listings cannot tell it whi
 matches the order, the product (or the courier) and the caller's principal, so it names only the caller's own
 review: the caller owns the order by construction, and `review_id` is null in the case that cannot happen.
 
+### An order is named by its canonical UUID
+
+`order_id` must be a UUID in its hyphenated form, in any case (the `uuid` rule), and both services lower-case it
+before they ask order, look for the 409's review and store it. Until 2026-10-27 review stored the client's
+spelling under a case-sensitive unique index while order's `Guid.TryParse` reads upper case, braces, parentheses
+and no hyphens as the same order, so one order reviewed a product (or rated its courier) once per spelling. The
+column is Postgres `uuid` in both tables since then, so the database keeps one spelling whatever a code path sends.
+Migration `2026_10_27_000001` rewrote the rows already there and refuses, changing nothing and printing only
+counts, when an order id is not a spelling order reads or two rows would become one. `review_evidence.order_id`
+stays text and append-only: a row that migration rewrote keeps in the log the spelling it was written with.
+
 ### Every error on `api/*` is rendered in `bootstrap/app.php`
 
 The render callback takes every `Throwable`, and Laravel runs render callbacks before its own branches for
@@ -116,6 +127,13 @@ Postgres check. The connections review never uses keep Laravel's defaults. `pack
 configuration and opens no connection: the image build gives it `DB_CONNECTION=build-time-placeholder`, and both
 CIs set `APP_ENV=testing`, so the discovery `composer install` runs reads `.env.testing`.
 
+### The API host grants no browser origin
+
+`bootstrap/app.php` removes Laravel's global `HandleCors`. With no `config/cors.php` of its own, review ran the
+framework's default, which answered every origin on `api/*` with `Access-Control-Allow-Origin: *` (seen live on
+2026-10-27); Kinetix trusts no browser origin on the API host. An `OPTIONS` now gets Laravel's router answer: 200,
+an empty body and `Allow` (`POST`, or `GET,HEAD`), and 404 on a path with no route.
+
 ### A database outage is 503, and only an outage
 
 `App\Resilience\DatabaseOutage` decides from the driver's error, never from the `QueryException`'s text, which
@@ -134,6 +152,15 @@ The rule is `integer:strict`. The loose `integer` passes whatever `filter_var(..
 which reads `true` as 1, `4.0` as 4 and `"5"` as 5, so `"rating": true` was saved as a one-star review. Review
 takes JSON only, and a rating is a JSON integer: a Dart `double`, which `jsonEncode` writes as `4.0`, is refused.
 
+### No text carries a NUL
+
+pdo_pgsql hands Postgres each text parameter as a C string, so a NUL cut the value there: a comment `a\0b` was
+stored as `a`, and the listing for `X\0Y` listed `X`'s reviews (checked 2026-10-27). `WithoutNulCharacter` refuses
+a NUL in `product_id`, `comment` and a listing's subject with 422, and `order_id`'s `uuid` rule refuses one too.
+The rule is implicit because Laravel skips the other rules on a string `trim()` empties, and `trim()` strips NUL;
+`TrimStringsLeavingNul` replaces the global `TrimStrings` and leaves a string that carries a NUL as it came, so a
+NUL at either end is refused rather than trimmed away as whitespace.
+
 ### Listings sort on `created_at`, then `id`
 
 `created_at` is stored to the second, and Postgres returns rows that tie on the sort key in whatever order the
@@ -142,6 +169,12 @@ at a time listed 2385 distinct reviews and never listed 615. Every listing there
 `created_at`. No index carries the order: the filter's own index narrows to one product, merchant or courier and
 a top-N heapsort orders those rows, and the tie-breaker leaves the plan as it was (a merchant with 20,000
 reviews: 5.0 ms before, 5.3 ms after).
+
+### A page is 1 to 10,000
+
+A `page` above about 6.1e17 overflowed the offset `($page - 1) * 15` to a float, which the query builder's `(int)`
+cast turned into a 500. Every listing now validates `page` as an integer from 1 to 10,000, as order does, with
+422 naming the bound, and hands it to the repository; the paginator no longer reads the request (2026-10-27).
 
 ### A JWKS outage is 503, never 401
 
@@ -172,7 +205,7 @@ not carry. Regenerate with the same Alpine protoc whenever the pin moves.
 the order, the author, the merchant, the rating, the comment's SHA-256 (of its UTF-8 bytes, or none) and
 `created_at` — and Postgres writes it: a trigger on each review table inserts the row in the statement that
 inserts the review, so no code path, raw query included, can write a review the log does not hold, and the row
-says exactly what the review row says. The other way round holds too: an `INSERT` into the log that does not come
+says exactly what the review row says (but for the order id's spelling of rows written before 2026-10-27, above). The other way round holds too: an `INSERT` into the log that does not come
 from one of those triggers (`pg_trigger_depth()` below 2) is refused, so no code can write evidence of a review that
 does not exist. Triggers on the log refuse `UPDATE`, `DELETE` and `TRUNCATE`. These guard every code path, not the
 database owner, who can drop a trigger; what guards against the owner is the anchor. The feed is read through

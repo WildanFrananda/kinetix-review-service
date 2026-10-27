@@ -10,13 +10,17 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 interface ProductReviewRepositoryInterface {
     public function create(array $data): ProductReview;
 
-    public function getPaginatedByProductId(string $productId, int $perPage = 15): LengthAwarePaginator;
+    public function getPaginatedByProductId(string $productId, int $page, int $perPage = 15): LengthAwarePaginator;
 
     public function getAverageRatingByProductId(string $productId): float;
 
     public function getTotalCountByProductId(string $productId): int;
 
-    public function getPaginatedByMerchantId(string $merchantPrincipalId, int $perPage = 15): LengthAwarePaginator;
+    public function getPaginatedByMerchantId(
+        string $merchantPrincipalId,
+        int $page,
+        int $perPage = 15
+    ): LengthAwarePaginator;
 
     public function getAverageRatingByMerchantId(string $merchantPrincipalId): float;
 

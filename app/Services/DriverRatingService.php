@@ -17,7 +17,8 @@ class DriverRatingService {
     ) {}
 
     public function createRating(AccessClaims $caller, array $data): DriverRating {
-        $order = $this->orderClient->getOrderDetails($data["order_id"]);
+        $orderId = strtolower($data["order_id"]);
+        $order = $this->orderClient->getOrderDetails($orderId);
         if ($order === null) {
             throw new InvalidArgumentException("Order not found.");
         }
@@ -39,7 +40,7 @@ class DriverRatingService {
         }
 
         return $this->repository->create([
-            "order_id" => $data["order_id"],
+            "order_id" => $orderId,
             "customer_principal_id" => $caller->principalId,
             "driver_principal_id" => $order->driverPrincipalId,
             "rating" => $data["rating"],
@@ -47,8 +48,8 @@ class DriverRatingService {
         ]);
     }
 
-    public function getDriverRatingSummary(string $driverPrincipalId): array {
-        $ratings = $this->repository->getPaginatedByDriverId($driverPrincipalId);
+    public function getDriverRatingSummary(string $driverPrincipalId, int $page): array {
+        $ratings = $this->repository->getPaginatedByDriverId($driverPrincipalId, $page);
         $avgRating = $this->repository->getAverageRatingByDriverId($driverPrincipalId);
         $totalCount = $this->repository->getTotalCountByDriverId($driverPrincipalId);
 

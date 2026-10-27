@@ -15,7 +15,7 @@ beforeEach(function () {
     $orders = new FakeOrderClient;
     $orders->addOrder(
         new OrderDetails(
-            "ORD-OUTAGE-001",
+            "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b09",
             "11111111-2222-3333-4444-555555555555",
             "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
             "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
@@ -75,9 +75,13 @@ it("answers 503, not 500, and logs the cause once, when the database refuses con
     "a product review" => [
         "POST",
         "/api/v1/reviews/products",
-        ["order_id" => "ORD-OUTAGE-001", "product_id" => "TSHIRT-BLK-M", "rating" => 5],
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b09", "product_id" => "TSHIRT-BLK-M", "rating" => 5],
     ],
-    "a driver rating" => ["POST", "/api/v1/reviews/drivers", ["order_id" => "ORD-OUTAGE-001", "rating" => 5]],
+    "a driver rating" => [
+        "POST",
+        "/api/v1/reviews/drivers",
+        ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b09", "rating" => 5],
+    ],
     "a product's reviews" => ["GET", "/api/v1/reviews/products/TSHIRT-BLK-M", []],
     "a merchant's reviews" => ["GET", "/api/v1/reviews/merchants/3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3", []],
     "a courier's ratings" => ["GET", "/api/v1/reviews/drivers/b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914", []],
