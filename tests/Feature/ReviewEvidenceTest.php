@@ -20,7 +20,7 @@ beforeEach(function () {
     $orders = new FakeOrderClient;
     $orders->addOrder(
         new OrderDetails(
-            "ORD-EVIDENCE-001",
+            "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0b",
             EVIDENCE_BUYER,
             EVIDENCE_MERCHANT,
             EVIDENCE_COURIER,
@@ -43,7 +43,7 @@ function evidenceRows(): array {
 it("logs a product review exactly as it was written", function () {
     $this->withHeaders(IdentityTokens::bearer())
         ->postJson("/api/v1/reviews/products", [
-            "order_id" => "ORD-EVIDENCE-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0b",
             "product_id" => "TSHIRT-BLK-M",
             "rating" => 4,
             "comment" => "Kainnya adem — ukuran pas",
@@ -56,7 +56,7 @@ it("logs a product review exactly as it was written", function () {
     expect($rows)->toHaveCount(1)
         ->and($rows[0]->review_id)->toBe($review->id)
         ->and($rows[0]->kind)->toBe("PRODUCT")
-        ->and($rows[0]->order_id)->toBe("ORD-EVIDENCE-001")
+        ->and($rows[0]->order_id)->toBe("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0b")
         ->and($rows[0]->subject_id)->toBe("TSHIRT-BLK-M")
         ->and($rows[0]->author_principal_id)->toBe(EVIDENCE_BUYER)
         ->and($rows[0]->merchant_principal_id)->toBe(EVIDENCE_MERCHANT)
@@ -68,7 +68,7 @@ it("logs a product review exactly as it was written", function () {
 it("logs a driver rating with the courier as its subject and no merchant", function () {
     $this->withHeaders(IdentityTokens::bearer())
         ->postJson("/api/v1/reviews/drivers", [
-            "order_id" => "ORD-EVIDENCE-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0b",
             "rating" => 5,
         ])
         ->assertStatus(201);
@@ -87,7 +87,7 @@ it("logs a driver rating with the courier as its subject and no merchant", funct
 
 it("logs nothing for a review that was refused", function () {
     $review = [
-        "order_id" => "ORD-EVIDENCE-001",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0b",
         "product_id" => "TSHIRT-BLK-M",
         "rating" => 3,
     ];
@@ -101,7 +101,7 @@ it("logs nothing for a review that was refused", function () {
 it("logs a review written straight into the table, so no code path can skip the log", function () {
     DB::table("product_reviews")->insert([
         "id" => "0b8f6a52-4d3e-4c1a-9f27-5e6d7c8b9a01",
-        "order_id" => "ORD-EVIDENCE-002",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0c",
         "customer_principal_id" => EVIDENCE_BUYER,
         "product_id" => "MUG-WHT",
         "merchant_principal_id" => null,
@@ -122,7 +122,7 @@ it("refuses evidence written straight into the log rather than by a review", fun
     expect(fn () => DB::transaction(fn () => DB::table("review_evidence")->insert([
         "review_id" => "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9",
         "kind" => "PRODUCT",
-        "order_id" => "ORD-NEVER-REVIEWED",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0d",
         "subject_id" => "TSHIRT-BLK-M",
         "author_principal_id" => EVIDENCE_BUYER,
         "rating" => 5,
@@ -134,7 +134,7 @@ it("refuses evidence written straight into the log rather than by a review", fun
 
 it("refuses to change or remove what the log holds", function (string $statement) {
     $this->withHeaders(IdentityTokens::bearer())
-        ->postJson("/api/v1/reviews/drivers", ["order_id" => "ORD-EVIDENCE-001", "rating" => 5])
+        ->postJson("/api/v1/reviews/drivers", ["order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0b", "rating" => 5])
         ->assertStatus(201);
 
     expect(fn () => DB::transaction(fn () => DB::statement($statement)))

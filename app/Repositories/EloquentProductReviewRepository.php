@@ -19,11 +19,11 @@ class EloquentProductReviewRepository implements ProductReviewRepositoryInterfac
         }
     }
 
-    public function getPaginatedByProductId(string $productId, int $perPage = 15): LengthAwarePaginator {
+    public function getPaginatedByProductId(string $productId, int $page, int $perPage = 15): LengthAwarePaginator {
         return ProductReview::where("product_id", $productId)
             ->latest()
             ->orderByDesc("id")
-            ->paginate($perPage);
+            ->paginate($perPage, ["*"], "page", $page);
     }
 
     public function getAverageRatingByProductId(string $productId): float {
@@ -36,11 +36,15 @@ class EloquentProductReviewRepository implements ProductReviewRepositoryInterfac
         return ProductReview::where("product_id", $productId)->count();
     }
 
-    public function getPaginatedByMerchantId(string $merchantPrincipalId, int $perPage = 15): LengthAwarePaginator {
+    public function getPaginatedByMerchantId(
+        string $merchantPrincipalId,
+        int $page,
+        int $perPage = 15
+    ): LengthAwarePaginator {
         return ProductReview::where("merchant_principal_id", $merchantPrincipalId)
             ->latest()
             ->orderByDesc("id")
-            ->paginate($perPage);
+            ->paginate($perPage, ["*"], "page", $page);
     }
 
     public function getAverageRatingByMerchantId(string $merchantPrincipalId): float {

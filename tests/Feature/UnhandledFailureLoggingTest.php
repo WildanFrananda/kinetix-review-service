@@ -43,7 +43,7 @@ it("logs a 500 once, with the exception class, its SQLSTATE and its SQL, never t
     $orders = new FakeOrderClient;
     $orders->addOrder(
         new OrderDetails(
-            "ORD-LOGGED-001",
+            "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0a",
             $buyer,
             $merchant,
             "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
@@ -59,7 +59,7 @@ it("logs a 500 once, with the exception class, its SQLSTATE and its SQL, never t
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-LOGGED-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0a",
                 "product_id" => "MUG-WHT-L",
                 "rating" => 2,
                 "comment" => $comment,
@@ -93,7 +93,7 @@ it("logs a 500 once, with the exception class, its SQLSTATE and its SQL, never t
         ])
         ->and($lines[0]["sql"])->toStartWith("insert into \"product_reviews\"")->toContain("values (?");
     $written = (string) file_get_contents($this->logFile);
-    foreach ([$comment, "ORD-LOGGED-001", "MUG-WHT-L", $buyer, $merchant] as $bound) {
+    foreach ([$comment, "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0a", "MUG-WHT-L", $buyer, $merchant] as $bound) {
         expect($written)->not->toContain($bound);
     }
 });

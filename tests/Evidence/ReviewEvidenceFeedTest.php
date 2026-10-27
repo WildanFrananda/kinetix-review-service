@@ -19,7 +19,7 @@ function review(string $connection = "pgsql", ?string $comment = null, string $k
     $id = (string) Str::uuid();
     $row = [
         "id" => $id,
-        "order_id" => "ORD-" . Str::upper(Str::random(8)),
+        "order_id" => (string) Str::uuid(),
         "customer_principal_id" => "11111111-2222-3333-4444-555555555555",
         "rating" => 4,
         "comment" => $comment,
@@ -153,7 +153,7 @@ it("answers unavailable, not an empty log, when the log cannot be read", functio
 });
 
 it("writes every review that existed before the log, in the order they were written", function () {
-    Artisan::call("migrate:rollback", ["--step" => 1]);
+    Artisan::call("migrate:rollback", ["--step" => 2]);
 
     $functions = DB::selectOne(
         "SELECT count(*) AS n FROM pg_proc WHERE proname LIKE 'review_%' OR proname LIKE '%_is_logged'"
@@ -167,7 +167,7 @@ it("writes every review that existed before the log, in the order they were writ
 
     DB::table("driver_ratings")->insert([
         "id" => $newer,
-        "order_id" => "ORD-OLD-2",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0f",
         "customer_principal_id" => "11111111-2222-3333-4444-555555555555",
         "driver_principal_id" => "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
         "rating" => 5,
@@ -177,7 +177,7 @@ it("writes every review that existed before the log, in the order they were writ
     ]);
     DB::table("product_reviews")->insert([
         "id" => $older,
-        "order_id" => "ORD-OLD-1",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b0e",
         "customer_principal_id" => "11111111-2222-3333-4444-555555555555",
         "product_id" => "MUG-WHT",
         "merchant_principal_id" => null,

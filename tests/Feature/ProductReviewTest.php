@@ -35,7 +35,7 @@ it("refuses a request carrying no token", function () {
     $response = $this->postJson(
         "/api/v1/reviews/products",
         [
-            "order_id" => "ORD-TEST-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
             "product_id" => "TSHIRT-BLK-M",
             "rating" => 5,
         ]
@@ -51,7 +51,7 @@ it("answers 401 in the house shape, with the request's trace id", function (?str
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-TEST-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -73,7 +73,7 @@ it("refuses a request carrying only an X-User-Id header", function () {
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-TEST-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -104,7 +104,7 @@ it("refuses a token signed by a key identity did not publish", function () {
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-TEST-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -118,7 +118,7 @@ it("refuses a refresh token, which is long-lived by design", function () {
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-TEST-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -132,7 +132,7 @@ it("refuses an expired token", function () {
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-TEST-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -146,7 +146,7 @@ it("refuses a token minted for another issuer", function () {
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-TEST-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b02",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -160,7 +160,7 @@ it("rejects a review for an order that does not exist", function () {
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "NON-EXISTENT-ORDER",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b03",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -170,13 +170,13 @@ it("rejects a review for an order that does not exist", function () {
 });
 
 it("answers 503, not a 422 saying the order is missing, when order-service is unreachable", function () {
-    $this->fakeOrderClient->markUnreachable("ORD-DELIVERED-001");
+    $this->fakeOrderClient->markUnreachable("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01");
 
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-DELIVERED-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -187,14 +187,14 @@ it("answers 503, not a 422 saying the order is missing, when order-service is un
 
 it("rejects a review for somebody else's order", function () {
     $this->fakeOrderClient->addOrder(
-        deliveredOrder("ORD-OTHER-001", "22222222-0000-0000-0000-000000000000")
+        deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b04", "22222222-0000-0000-0000-000000000000")
     );
 
     $response = $this->withHeaders(IdentityTokens::bearer(["uid" => 1001]))
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-OTHER-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b04",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -205,14 +205,14 @@ it("rejects a review for somebody else's order", function () {
 
 it("rejects a review for an order that is not DELIVERED or COMPLETED", function () {
     $this->fakeOrderClient->addOrder(
-        deliveredOrder("ORD-PENDING-001", "11111111-2222-3333-4444-555555555555", false)
+        deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b05", "11111111-2222-3333-4444-555555555555", false)
     );
 
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-PENDING-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b05",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -222,13 +222,13 @@ it("rejects a review for an order that is not DELIVERED or COMPLETED", function 
 });
 
 it("rejects a review for a product the order does not contain", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
 
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-DELIVERED-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
                 "product_id" => "SOMETHING-NEVER-BOUGHT",
                 "rating" => 5,
             ]
@@ -240,7 +240,7 @@ it("rejects a review for a product the order does not contain", function () {
 it("refuses a merchant's review of its own product, whatever the order says it bought", function () {
     $this->fakeOrderClient->addOrder(
         new OrderDetails(
-            "ORD-SELF-001",
+            "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b06",
             "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
             "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
             "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914",
@@ -255,7 +255,7 @@ it("refuses a merchant's review of its own product, whatever the order says it b
     ])->postJson(
         "/api/v1/reviews/products",
         [
-            "order_id" => "ORD-SELF-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b06",
             "product_id" => "TSHIRT-BLK-M",
             "rating" => 5,
         ]
@@ -271,13 +271,13 @@ it("refuses a merchant's review of its own product, whatever the order says it b
 });
 
 it("creates a review for the order's merchant, attributed to the token's account", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
 
     $response = $this->withHeaders(IdentityTokens::bearer())
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-DELIVERED-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
                 "comment" => "Awesome product!",
@@ -294,7 +294,7 @@ it("creates a review for the order's merchant, attributed to the token's account
     $this->assertDatabaseHas(
         "product_reviews",
         [
-            "order_id" => "ORD-DELIVERED-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
             "customer_principal_id" => "11111111-2222-3333-4444-555555555555",
             "merchant_principal_id" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
         ]
@@ -302,13 +302,13 @@ it("creates a review for the order's merchant, attributed to the token's account
 });
 
 it("files the review under the order's merchant, whatever merchant the request names", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
 
     $this->withHeaders(IdentityTokens::bearer())
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-DELIVERED-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
                 "product_id" => "TSHIRT-BLK-M",
                 "merchant_principal_id" => "9d0e5f61-3b2a-4c7d-8e9f-a1b2c3d4e5f6",
                 "rating" => 1,
@@ -319,7 +319,7 @@ it("files the review under the order's merchant, whatever merchant the request n
     $this->assertDatabaseHas(
         "product_reviews",
         [
-            "order_id" => "ORD-DELIVERED-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
             "merchant_principal_id" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
         ]
     );
@@ -332,9 +332,9 @@ it("files the review under the order's merchant, whatever merchant the request n
 });
 
 it("refuses a second review of the same product from the same order", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
     $review = [
-        "order_id" => "ORD-DELIVERED-001",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
         "product_id" => "TSHIRT-BLK-M",
         "rating" => 5,
     ];
@@ -350,9 +350,9 @@ it("refuses a second review of the same product from the same order", function (
 });
 
 it("names the review already written in the 409, so an author who lost the 201 can find it", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
     $review = [
-        "order_id" => "ORD-DELIVERED-001",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
         "product_id" => "TSHIRT-BLK-M",
         "rating" => 5,
     ];
@@ -371,10 +371,10 @@ it("names the review already written in the 409, so an author who lost the 201 c
 });
 
 it("names no review in the 409 when the review already there is not the caller's", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
     DB::table("product_reviews")->insert([
         "id" => "6a1f0c2e-8b3d-4e5f-9a7b-1c2d3e4f5a6b",
-        "order_id" => "ORD-DELIVERED-001",
+        "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
         "customer_principal_id" => "22222222-0000-0000-0000-000000000000",
         "product_id" => "TSHIRT-BLK-M",
         "merchant_principal_id" => "3c9a77b1-58de-4a01-8f2e-6d4b19c0a8f3",
@@ -387,7 +387,7 @@ it("names no review in the 409 when the review already there is not the caller's
         ->postJson(
             "/api/v1/reviews/products",
             [
-                "order_id" => "ORD-DELIVERED-001",
+                "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
                 "product_id" => "TSHIRT-BLK-M",
                 "rating" => 5,
             ]
@@ -402,11 +402,11 @@ it("names no review in the 409 when the review already there is not the caller's
 });
 
 it("reads a product's reviews without a token, and without saying who wrote them", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
     $this->withHeaders(IdentityTokens::bearer())->postJson(
         "/api/v1/reviews/products",
         [
-            "order_id" => "ORD-DELIVERED-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
             "product_id" => "TSHIRT-BLK-M",
             "rating" => 4,
         ]
@@ -422,11 +422,11 @@ it("reads a product's reviews without a token, and without saying who wrote them
 });
 
 it("reads a merchant's reviews as the ones bought from that merchant", function () {
-    $this->fakeOrderClient->addOrder(deliveredOrder("ORD-DELIVERED-001"));
+    $this->fakeOrderClient->addOrder(deliveredOrder("5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01"));
     $this->withHeaders(IdentityTokens::bearer())->postJson(
         "/api/v1/reviews/products",
         [
-            "order_id" => "ORD-DELIVERED-001",
+            "order_id" => "5f2b8c1e-4a7d-4e93-b6c0-1d8e2f3a4b01",
             "product_id" => "TSHIRT-BLK-M",
             "rating" => 2,
         ]

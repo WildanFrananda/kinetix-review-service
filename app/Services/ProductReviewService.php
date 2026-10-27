@@ -17,7 +17,8 @@ class ProductReviewService {
     ) {}
 
     public function createReview(AccessClaims $caller, array $data): ProductReview {
-        $order = $this->orderClient->getOrderDetails($data["order_id"]);
+        $orderId = strtolower($data["order_id"]);
+        $order = $this->orderClient->getOrderDetails($orderId);
         if ($order === null) {
             throw new InvalidArgumentException("Order not found.");
         }
@@ -39,7 +40,7 @@ class ProductReviewService {
         }
 
         return $this->repository->create([
-            "order_id" => $data["order_id"],
+            "order_id" => $orderId,
             "customer_principal_id" => $caller->principalId,
             "product_id" => $data["product_id"],
             "merchant_principal_id" => $order->merchantPrincipalId !== "" ? $order->merchantPrincipalId : null,
@@ -48,8 +49,8 @@ class ProductReviewService {
         ]);
     }
 
-    public function getProductReviewSummary(string $productId): array {
-        $reviews = $this->repository->getPaginatedByProductId($productId);
+    public function getProductReviewSummary(string $productId, int $page): array {
+        $reviews = $this->repository->getPaginatedByProductId($productId, $page);
         $avgRating = $this->repository->getAverageRatingByProductId($productId);
         $totalCount = $this->repository->getTotalCountByProductId($productId);
 
@@ -63,8 +64,8 @@ class ProductReviewService {
         ];
     }
 
-    public function getMerchantReviewSummary(string $merchantPrincipalId): array {
-        $reviews = $this->repository->getPaginatedByMerchantId($merchantPrincipalId);
+    public function getMerchantReviewSummary(string $merchantPrincipalId, int $page): array {
+        $reviews = $this->repository->getPaginatedByMerchantId($merchantPrincipalId, $page);
         $avgRating = $this->repository->getAverageRatingByMerchantId($merchantPrincipalId);
         $totalCount = $this->repository->getTotalCountByMerchantId($merchantPrincipalId);
 
