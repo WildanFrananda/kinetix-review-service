@@ -31,6 +31,17 @@ it("labels a route with its template and not with the id that was in the URL", f
     expect($body)->not->toContain("8f3a1b2c");
 });
 
+it("labels the OPTIONS answer Laravel makes up as unmatched, never with the URL it was asked", function () {
+    $nil = "00000000-0000-0000-0000-000000000000";
+
+    $this->call("OPTIONS", "/api/v1/reviews/products/" . $nil)->assertStatus(200);
+
+    $body = $this->get("/api/metrics")->getContent();
+
+    expect($body)->not->toContain($nil);
+    expect($body)->toContain('kinetix_http_requests_total{method="OPTIONS",route="<unmatched>",status="200"} 1');
+});
+
 it("gives an unrouted URL one label instead of one series per URL a scanner invents", function () {
     $this->get("/api/nope/" . uniqid());
 
