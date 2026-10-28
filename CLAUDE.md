@@ -134,6 +134,14 @@ framework's default, which answered every origin on `api/*` with `Access-Control
 2026-10-27); Kinetix trusts no browser origin on the API host. An `OPTIONS` now gets Laravel's router answer: 200,
 an empty body and `Allow` (`POST`, or `GET,HEAD`), and 404 on a path with no route.
 
+That answer comes from a route Laravel makes up on the spot (`new Route('OPTIONS', $request->path(), …)` in
+`AbstractRouteCollection::getRouteForMethods`), whose URI is the raw path. `HttpMetrics` used `$route->uri()` as the
+`route` label, so on 2026-10-28 one `OPTIONS /api/v1/reviews/products/<id>` put the id in a label, and the deploy gate
+(`metrics-conformance`, which reads every service's `/metrics`) refused every deploy in the estate, the gateway's
+v1.6.1 and its rollback included. The label is now the template of a route the application registered; anything
+else, that made-up route included, is `<unmatched>` (`tests/Feature/MetricsTest.php`, which fails on the old
+middleware).
+
 ### A database outage is 503, and only an outage
 
 `App\Resilience\DatabaseOutage` decides from the driver's error, never from the `QueryException`'s text, which
