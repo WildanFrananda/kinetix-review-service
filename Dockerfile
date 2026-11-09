@@ -34,7 +34,7 @@ RUN rm -rf rr bootstrap/cache/packages.php bootstrap/cache/services.php \
     && test -f vendor/autoload.php \
     && test -f bootstrap/cache/packages.php
 
-FROM golang:1.27-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS rr
+FROM golang:1.27-bookworm@sha256:dc0963f32053e4bc451d24d87e3892d42d01021b61f093e98eb95c0352bb84b0 AS rr
 
 WORKDIR /src
 
