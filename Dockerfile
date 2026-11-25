@@ -78,6 +78,8 @@ ENV PORT=8002
 EXPOSE 8002
 
 RUN set -eux; \
+    cp /usr/local/bin/frankenphp /usr/local/bin/frankenphp.nocap; \
+    mv /usr/local/bin/frankenphp.nocap /usr/local/bin/frankenphp; \
     adduser --system --uid 10001 --group kinetix; \
     mkdir -p /data/caddy /config/caddy; \
     chown -R kinetix:kinetix /app /data /config
