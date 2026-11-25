@@ -1,0 +1,34 @@
+language: "en-US"
+reviews:
+  profile: "assertive"
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "development"
+  path_filters:
+    - "!generated/**"
+    - "!vendor/**"
+    - "!public/build/**"
+  path_instructions:
+    - path: "app/**"
+      instructions: |
+        - Enforce `declare(strict_types=1);` on every PHP file, same-line opening braces (K&R/OTBS), double quotes for strings, and `./vendor/bin/pint --test` compliance.
+        - Enforce the layered Repository pattern (`Controllers -> Services -> Contracts -> Repositories`); flag direct Eloquent or raw DB queries in controllers or services that bypass repository contracts.
+        - Flag any hardcoded fallback secrets, default environment URLs/hosts, static/legacy merchant API keys, pseudo-random metric fallbacks, or mocked/dummy production logic.
+        - Flag verbose or redundant comments; keep code self-documenting and 100% English.
+    - path: "app/Grpc/**"
+      instructions: |
+        - Verify gRPC handlers and clients align with generated Protobuf stubs (`generated/`), propagate transport/upstream failures honestly without inventing zero/empty business answers, and never leak raw SQL/query exception text.
+    - path: "rr/**"
+      instructions: |
+        - Go code in `rr/` is strictly scoped to RoadRunner plugins (SPIFFE peer allow-list and gRPC feed metrics) per AGENTS.md; flag any domain or business logic placed in Go instead of PHP.
+    - path: "database/migrations/**"
+      instructions: |
+        - Verify migrations remain reversible where practical and enforce database-level constraints (`NOT NULL`, `CHECK`, foreign keys, unique indexes).
+    - path: "tests/**"
+      instructions: |
+        - Verify Pest PHP tests (`./vendor/bin/pest`) cover edge cases, authorization, concurrency, and error states cleanly without weakening assertions or hardcoding real secrets.
+chat:
+  auto_reply: true
