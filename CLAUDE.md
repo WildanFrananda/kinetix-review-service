@@ -308,3 +308,16 @@ the packages of whichever build first ran it: on 2026-10-21 the scan failed on t
 `linux-libc-dev` 6.12.111-1 while trixie-security already shipped the fix, 6.12.113-1. `build-and-push.yml`
 therefore builds the `final` stage with `no-cache-filters: final`; the vendor and rr stages stay cached. Keep the
 stage named `final`, or the filter matches nothing and the upgrade goes stale again in silence.
+
+### The lab seed writes ratings no buyer gave
+
+`php artisan lab:seed-courier-ratings <principal> --count=40 --stars=5,5,4,5,4` (`App\Console\Commands\SeedLabCourierRatings`,
+writing through `App\Lab\CourierRatingsSeed` and the rating repository) rates one courier so seal can issue a credential
+in the lab (infra `docs/SEAL-SERVICE.md`, SEAL-D15; procedure in docs-internal `operations/seal-credential-lab`). It
+skips order on purpose: each rating gets a fresh order id and a fresh buyer principal, neither of which order knows,
+and that is why it is a console command and never a route. It writes only when the connection's database ends in
+`_dev` (`App\Lab\LabDatabase`): the lab's is `kinetix_review_dev`, production's `kinetix_review`. The trigger logs every
+rating in `review_evidence` as it logs a real one, which is what seal's feed reads; the log is append-only, so seeded
+ratings stay until the lab's volume goes. `database/seeders/DatabaseSeeder.php` is still Laravel's scaffold and names
+an `App\Models\User` this service does not have.
+
