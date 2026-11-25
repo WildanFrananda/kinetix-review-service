@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Repositories\DriverRatingRepositoryInterface;
 use App\Lab\CourierRatingsSeed;
 use App\Lab\LabDatabase;
 use App\Models\DriverRating;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 const SEEDED_COURIER = "b7e2c05f-9a34-4c88-b1d6-0e7a3f52d914";
@@ -66,4 +68,52 @@ it("refuses an empty courier", function () {
     $this->artisan("lab:seed-courier-ratings", ["courier" => "  "])
         ->expectsOutputToContain("the courier's principal id is empty")
         ->assertFailed();
+});
+
+it("rolls back earlier inserts when a later rating fails inside the transaction", function () {
+    $real = app(DriverRatingRepositoryInterface::class);
+    $failingOnSecond = new class($real) implements DriverRatingRepositoryInterface {
+        private int $calls = 0;
+
+        public function __construct(private readonly DriverRatingRepositoryInterface $inner) {}
+
+        public function create(array $data): DriverRating {
+            $this->calls++;
+            if ($this->calls === 2) {
+                throw new RuntimeException("simulated failure on second rating");
+            }
+
+            return $this->inner->create($data);
+        }
+
+        public function getPaginatedByDriverId(
+            string $driverPrincipalId,
+            int $page,
+            int $perPage = 15
+        ): LengthAwarePaginator {
+            return $this->inner->getPaginatedByDriverId($driverPrincipalId, $page, $perPage);
+        }
+
+        public function getAverageRatingByDriverId(string $driverPrincipalId): float {
+            return $this->inner->getAverageRatingByDriverId($driverPrincipalId);
+        }
+
+        public function getTotalCountByDriverId(string $driverPrincipalId): int {
+            return $this->inner->getTotalCountByDriverId($driverPrincipalId);
+        }
+    };
+
+    $seed = new CourierRatingsSeed($failingOnSecond);
+
+    expect(fn () => $seed->write(SEEDED_COURIER, 2, [5, 4]))
+        ->toThrow(RuntimeException::class, "simulated failure on second rating");
+
+    expect(DriverRating::where("driver_principal_id", SEEDED_COURIER)->count())->toBe(0);
+
+    $evidenceCount = DB::selectOne(
+        "SELECT COUNT(*) AS aggregate FROM review_evidence WHERE subject_id = ?",
+        [SEEDED_COURIER]
+    );
+
+    expect((int) $evidenceCount->aggregate)->toBe(0);
 });
